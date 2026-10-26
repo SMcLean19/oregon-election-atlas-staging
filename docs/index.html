@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Oregon Election Atlas</title>
+<meta name="description" content="An independent tracker of Oregon elections: unofficial election night results, district maps, voter registration and past results.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<script src="d3.min.js"></script>
+<style>
+:root {
+  --color-bg: #fbfbf8; --color-panel: #ffffff; --color-fg: #1d2129; --color-fg-muted: #5d6470;
+  --color-border-line: #dfe1e4; --color-ok: #1f7a4d; --color-warn: #9a6400; --color-bad: #b42318;
+  --cds-text-secondary: #5d6470; --cds-surface-popover: #ffffff; --cds-border: #d4d7db;
+  --cds-shadow-popover: 0 4px 16px rgba(20, 24, 31, .12);
+  --cds-chart-grid: #e8e9ec; --cds-chart-axis: #b8bcc3; --cds-chart-reference: #8a9099; --cds-chart-muted: #b8bcc3;
+  --pub-banner-bg: #fff4d6; --pub-banner-fg: #4a3500; --pub-banner-line: #e8c56a;
+  --font-anthropic-sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-anthropic-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --cds-font-size-caption: .8125rem; --cds-font-size-body: .9375rem; --cds-font-size-heading: 1.0625rem; --cds-font-size-title: 1.75rem;
+  --cds-font-weight-medium: 600;
+  --cds-gap-xs: .25rem; --cds-gap-sm: .5rem; --cds-gap-md: .875rem; --cds-gap-lg: 1.25rem; --cds-gap-xl: 2rem;
+  --cds-pad-xs: .25rem; --cds-pad-sm: .5rem; --cds-pad-md: .75rem; --cds-pad-lg: 1rem; --cds-pad-xl: 1.5rem;
+  --cds-radius: 8px; --cds-dur-slow: 320ms; --cds-ease-out: cubic-bezier(.2, .7, .2, 1);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #13161b; --color-panel: #1b1f26; --color-fg: #e9ebee; --color-fg-muted: #a2a8b2;
+    --color-border-line: #2e343d; --color-ok: #5cc28d; --color-warn: #e0a53a; --color-bad: #f07167;
+    --cds-text-secondary: #a2a8b2; --cds-surface-popover: #222731; --cds-border: #39404b;
+    --cds-shadow-popover: 0 6px 20px rgba(0, 0, 0, .45);
+    --cds-chart-grid: #2a3038; --cds-chart-axis: #4b535e; --cds-chart-reference: #7d8590; --cds-chart-muted: #4b535e;
+    --pub-banner-bg: #3a2e0d; --pub-banner-fg: #f6e3b0; --pub-banner-line: #6b5414;
+    color-scheme: dark;
+  }
+}
+html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); font-size: 15px; -webkit-text-size-adjust: 100%; }
+.pub-banner { background: var(--pub-banner-bg); color: var(--pub-banner-fg); border-bottom: 1px solid var(--pub-banner-line); font-size: .875rem; line-height: 1.45;
+  padding: .55rem max(16px, env(safe-area-inset-right, 0px)) .55rem max(16px, env(safe-area-inset-left, 0px)); padding-top: max(.55rem, env(safe-area-inset-top, 0px)); }
+.pub-banner b { font-weight: 700; }
+.pub-banner a { color: inherit; }
+#dash-root { max-width: 1280px; margin: 0 auto; padding: 1.25rem max(16px, env(safe-area-inset-right, 0px)) 2rem max(16px, env(safe-area-inset-left, 0px)); }
+.pub-foot { max-width: 1280px; margin: 0 auto; padding: 1rem max(16px, env(safe-area-inset-right, 0px)) max(2rem, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  border-top: 1px solid var(--color-border-line); color: var(--color-fg-muted); font-size: .8125rem; line-height: 1.5; display: grid; gap: .35rem; }
+.pub-foot a { color: inherit; }
+[hidden] { display: none !important; }
+.dash-skeleton { display: inline-block; min-width: 6rem; height: .9em; border-radius: 4px; background: var(--color-border-line); color: transparent !important; }
+a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="pub-banner" role="note"><b>Unofficial results.</b> Election night numbers come from the Oregon Secretary of State’s unofficial results at <a href="https://results.oregonvotes.gov" target="_blank" rel="noopener">results.oregonvotes.gov</a>. Race calls are this site’s own projections, not official results. <span id="pub-checked"></span></div>
+<div id="dash-root">
+<style>
+/* Layout: a county-clerk style atlas. Tab strip, then map + district file side by side; stacks when narrow. */
+.oea { --oea-d: #2f69c0; --oea-r: #c33f37; --oea-toss: #8d6cc0; font-family: var(--font-anthropic-sans); color: var(--color-fg); display: grid; gap: var(--cds-gap-lg); }
+.oea-head { display: grid; gap: var(--cds-gap-xs); }
+.oea-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.oea-take { color: var(--color-fg-muted); font-size: var(--cds-font-size-body); margin: 0; max-width: 70ch; }
+.oea-take b { color: var(--color-fg); font-weight: 600; }
+.oea-tabs { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); border-bottom: 1px solid var(--color-border-line); }
+.oea-tab { appearance: none; border: 0; background: none; color: var(--color-fg-muted); font: inherit; font-size: var(--cds-font-size-body); padding: var(--cds-pad-sm) var(--cds-pad-md); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.oea-tab[aria-selected="true"] { color: var(--color-fg); border-bottom-color: var(--color-fg); font-weight: 600; }
+.oea-tab:focus-visible, .oea-btn:focus-visible, .oea-seg button:focus-visible, .oea th button:focus-visible { outline: 2px solid var(--oea-d); outline-offset: 2px; }
+.oea-controls { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); align-items: center; }
+.oea-seg { display: inline-flex; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); overflow: hidden; }
+.oea-seg button { appearance: none; border: 0; background: var(--color-panel); color: var(--color-fg-muted); font: inherit; font-size: var(--cds-font-size-caption); padding: var(--cds-pad-xs) var(--cds-pad-md); cursor: pointer; }
+.oea-seg button + button { border-left: 1px solid var(--color-border-line); }
+.oea-seg button[aria-pressed="true"] { background: var(--color-fg); color: var(--color-bg); }
+.oea-select { font: inherit; font-size: var(--cds-font-size-caption); padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-panel); color: var(--color-fg); }
+.oea-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); display: inline-flex; gap: var(--cds-gap-xs); align-items: center; }
+.oea-btn { appearance: none; font: inherit; font-size: var(--cds-font-size-caption); padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-panel); color: var(--color-fg); cursor: pointer; }
+.oea-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(min(100%, 21rem), 1fr); gap: var(--cds-gap-lg); align-items: start; }
+@media (max-width: 860px) { .oea-grid { grid-template-columns: minmax(0, 1fr); } }
+.oea-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; display: grid; gap: var(--cds-gap-md); align-content: start; }
+.oea-card h3 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+.oea-note { margin: 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.oea-mapbox { position: relative; min-height: 18rem; }
+.oea-map { display: block; width: 100%; height: auto; touch-action: pan-y; cursor: grab; }
+.oea-map path.dist { stroke: var(--color-bg); stroke-width: 0.8; cursor: pointer; }
+.oea-map path.dist:hover { stroke: var(--color-fg); stroke-width: 1.5; }
+.oea-map path.dist.sel { stroke: var(--color-fg); stroke-width: 2.6; }
+.oea-map text { fill: var(--color-fg); paint-order: stroke; stroke: var(--color-panel); stroke-width: 3px; font-family: var(--font-anthropic-sans); pointer-events: none; font-variant-numeric: tabular-nums; }
+.oea-zoom { position: absolute; right: var(--cds-pad-sm); top: var(--cds-pad-sm); display: grid; gap: var(--cds-gap-xs); }
+.oea-zoom .oea-btn { width: 2rem; padding: var(--cds-pad-xs) 0; text-align: center; }
+.oea-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm) var(--cds-gap-md); align-items: center; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.oea-legend i { display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 2px; vertical-align: -2px; margin-right: 4px; }
+.oea-ramp { display: inline-block; width: 9rem; height: 0.6rem; border-radius: 2px; vertical-align: middle; }
+.oea-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); max-width: 16rem; z-index: 2; }
+.oea-tip .t { color: var(--cds-text-secondary); }
+.oea-panel-head { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: baseline; justify-content: space-between; }
+.oea-panel-name { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-weight: 400; margin: 0; }
+.oea-chips { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs); }
+.oea-chip { font-size: var(--cds-font-size-caption); padding: 1px 8px; border-radius: 999px; border: 1px solid var(--color-border-line); white-space: nowrap; }
+.oea-chip.d { background: color-mix(in srgb, var(--oea-d) 18%, transparent); border-color: color-mix(in srgb, var(--oea-d) 45%, transparent); }
+.oea-chip.r { background: color-mix(in srgb, var(--oea-r) 18%, transparent); border-color: color-mix(in srgb, var(--oea-r) 45%, transparent); }
+.oea-chip.t { background: color-mix(in srgb, var(--oea-toss) 20%, transparent); border-color: color-mix(in srgb, var(--oea-toss) 50%, transparent); }
+.oea-chip.w { border-style: dashed; }
+.oea-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--cds-gap-xs) var(--cds-gap-md); font-size: var(--cds-font-size-body); margin: 0; }
+.oea-kv dt { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); padding-top: 2px; }
+.oea-kv dd { margin: 0; min-width: 0; }
+.oea-sub { font-size: var(--cds-font-size-caption); text-transform: uppercase; letter-spacing: .06em; color: var(--color-fg-muted); margin: 0; }
+.oea-stack { display: flex; height: 1.1rem; border-radius: 3px; overflow: hidden; background: var(--color-border-line); }
+.oea-stack span { display: block; height: 100%; }
+.oea-stack-key { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.oea-stack-key b { color: var(--color-fg); font-weight: 600; }
+.oea-vs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cds-gap-sm); }
+.oea-vs > div { border-left: 3px solid var(--color-border-line); padding-left: var(--cds-pad-sm); font-size: var(--cds-font-size-body); min-width: 0; }
+.oea-vs .d { border-left-color: var(--oea-d); }
+.oea-vs .r { border-left-color: var(--oea-r); }
+.oea-vs small { display: block; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.oea-tw { overflow-x: auto; }
+.oea table { border-collapse: collapse; width: 100%; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.oea th { text-align: left; font-weight: 500; color: var(--color-fg-muted); border-bottom: 1px solid var(--color-border-line); padding: var(--cds-pad-xs) var(--cds-pad-sm); white-space: nowrap; background: var(--color-panel); }
+.oea td { padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); vertical-align: top; }
+.oea td.n, .oea th.n { text-align: right; }
+.oea th button { appearance: none; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; padding: 0; }
+.oea .scroll { max-height: 34rem; overflow: auto; }
+.oea .scroll th { position: sticky; top: 0; z-index: 1; }
+.oea tr.click { cursor: pointer; }
+.oea tr.click:hover td { background: color-mix(in srgb, var(--color-fg) 5%, transparent); }
+.oea .pd { color: var(--oea-d); font-weight: 600; }
+.oea .pr { color: var(--oea-r); font-weight: 600; }
+.oea .muted { color: var(--color-fg-muted); }
+.oea-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--cds-gap-md); }
+.oea-tile { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-md) var(--cds-pad-lg); display: grid; gap: 2px; }
+.oea-tile .v { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; }
+.oea-tile .l { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.oea-tile .c { font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.oea-prose { max-width: 72ch; display: grid; gap: var(--cds-gap-sm); font-size: var(--cds-font-size-body); line-height: 1.55; }
+.oea-prose p, .oea-prose ul { margin: 0; }
+.oea-prose h3 { margin-top: var(--cds-gap-md); }
+.oea-search { font: inherit; font-size: var(--cds-font-size-caption); padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-bg); color: var(--color-fg); min-width: 0; width: 14rem; max-width: 100%; }
+.oea-chart { min-height: 11rem; }
+.oea-chart svg { display: block; }
+.oea-chart text { fill: var(--color-fg-muted); font-size: 11px; font-family: var(--font-anthropic-sans); }
+[data-dash-source-state=empty] { color: transparent; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+.oea-fail { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); min-height: inherit; }
+.oea-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); }
+.oea-seats { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(min(100%, 15rem), 1fr); gap: var(--cds-gap-lg); align-items: center; }
+@media (max-width: 700px) { .oea-seats { grid-template-columns: minmax(0, 1fr); } }
+.oea-seatbox { position: relative; min-height: 9rem; }
+.oea-seatbox svg { display: block; width: 100%; height: auto; }
+.oea-seatbox circle.seat { cursor: pointer; }
+.oea-seatbox circle.seat:hover { stroke: var(--color-fg); stroke-width: 1.5; }
+.oea-seatbox text { fill: var(--color-fg-muted); font-size: 11px; font-family: var(--font-anthropic-sans); }
+.oea-seatkey { display: grid; gap: var(--cds-gap-sm); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.oea-seatkey .big { display: flex; gap: var(--cds-gap-lg); align-items: baseline; flex-wrap: wrap; }
+.oea-seatkey .big span { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; }
+.oea-seatkey i { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+.oea-group { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+.oea-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr)); gap: var(--cds-gap-md); }
+.oea-race { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: grid; gap: var(--cds-gap-sm); align-content: start; min-width: 0; }
+.oea-race .rank { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.oea-race h4 { margin: 0; font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-heading); }
+.oea-why { font-size: var(--cds-font-size-caption); margin: 0; }
+.oea-race .foot { display: flex; justify-content: space-between; align-items: center; gap: var(--cds-gap-sm); flex-wrap: wrap; border-top: 1px solid var(--color-border-line); padding-top: var(--cds-pad-sm); }
+.oea-nstatus { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm) var(--cds-gap-lg); align-items: center; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.oea-chip.live::before { content: ""; display: inline-block; width: .45rem; height: .45rem; border-radius: 50%; background: var(--oea-r); margin-right: 5px; vertical-align: 1px; }
+@media (prefers-reduced-motion: no-preference) { .oea-chip.live::before { animation: oea-pulse 1.6s var(--cds-ease-out) infinite; } }
+@keyframes oea-pulse { 50% { opacity: .25; } }
+.oea-rehearsal { margin: 0; padding: var(--cds-pad-sm) var(--cds-pad-md); border: 1px dashed var(--oea-toss); border-radius: var(--cds-radius); font-size: var(--cds-font-size-body); background: color-mix(in srgb, var(--oea-toss) 10%, transparent); }
+.oea-ngrid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(min(100%, 22rem), 1fr); gap: var(--cds-gap-lg); align-items: start; }
+@media (max-width: 900px) { .oea-ngrid { grid-template-columns: minmax(0, 1fr); } }
+.oea-ncol { display: grid; gap: var(--cds-gap-lg); min-width: 0; align-content: start; }
+.oea-nhead { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--cds-gap-md); align-items: end; }
+.oea-nhead .side.r { text-align: right; }
+.oea-nhead .n { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; margin-right: 6px; }
+.oea-nhead .lbl { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.oea-nhead .sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.oea-nhead .mid { text-align: center; }
+.oea-nstrip { display: grid; gap: var(--cds-gap-sm); max-height: 30rem; overflow-y: auto; padding-right: 4px; }
+.oea-nstate { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--cds-gap-md); }
+.oea-ncard { appearance: none; text-align: left; font: inherit; color: inherit; background: var(--color-bg); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-sm) var(--cds-pad-md); display: grid; gap: 4px; cursor: pointer; width: 100%; }
+.oea-ncard.on { outline: 2px solid var(--color-fg); outline-offset: -1px; }
+.oea-ncard.big { padding: var(--cds-pad-md); }
+.oea-ncard .top { display: flex; justify-content: space-between; gap: var(--cds-gap-sm); align-items: center; }
+.oea-ncard .name { font-weight: 600; font-size: var(--cds-font-size-body); }
+.oea-ncard .cand { display: grid; grid-template-columns: minmax(0, 7.5rem) 1fr 3.2rem; gap: var(--cds-gap-sm); align-items: center; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.oea-ncard .cn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oea-ncard .bar { height: .5rem; background: var(--color-border-line); border-radius: 3px; overflow: hidden; }
+.oea-ncard .bar i { display: block; height: 100%; border-radius: 3px; }
+.oea-ncard .cp { text-align: right; }
+.oea-feed { display: grid; gap: 0; max-height: 34rem; overflow-y: auto; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
+.oea-tweet { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); gap: var(--cds-gap-sm); padding: var(--cds-pad-sm) var(--cds-pad-md); border-bottom: 1px solid var(--color-border-line); background: var(--color-bg); }
+@media (prefers-reduced-motion: no-preference) { .oea-tweet { animation: oea-in var(--cds-dur-slow) var(--cds-ease-out); } }
+@keyframes oea-in { from { opacity: .3; transform: translateY(-4px); } }
+.oea-tweet .av { width: 2.25rem; height: 2.25rem; border-radius: 50%; display: grid; place-items: center; font-size: var(--cds-font-size-caption); font-weight: 700; background: var(--color-fg); color: var(--color-bg); }
+.oea-tweet .meta { font-size: var(--cds-font-size-caption); display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
+.oea-tweet .kind { margin-left: auto; font-size: var(--cds-font-size-caption); padding: 0 6px; border-radius: 999px; border: 1px solid var(--color-border-line); }
+.oea-tweet.k-flip .kind, .oea-tweet.k-upset .kind { border-color: var(--oea-toss); background: color-mix(in srgb, var(--oea-toss) 18%, transparent); }
+.oea-tweet.k-majority .kind { background: var(--color-fg); color: var(--color-bg); border-color: var(--color-fg); }
+.oea-tweet .txt { margin: 2px 0 0; font-size: var(--cds-font-size-body); line-height: 1.45; }
+.oea-tweet .txt.link { cursor: pointer; }
+.oea-tweet .txt.link:hover { text-decoration: underline; }
+.oea > *, .oea-page { min-width: 0; }
+.oea-ticker { min-width: 0; max-width: 100%; --tk-bg: #0f1722; --tk-fg: #f3f5f8; --tk-muted: #9aa6b6; --tk-d: #8fb8ff; --tk-r: #ff9a8f; display: flex; align-items: stretch; background: var(--tk-bg); color: var(--tk-fg); border-radius: var(--cds-radius); overflow: hidden; font-variant-numeric: tabular-nums; min-height: 2.4rem; }
+.oea-ticker-tag { flex: none; display: flex; align-items: center; padding: 0 var(--cds-pad-md); background: #c33f37; color: #fff; font-size: var(--cds-font-size-caption); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.oea-ticker-win { flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: center; }
+.oea-ticker-track { display: flex; width: max-content; }
+.oea-ticker .seq { display: flex; flex: none; }
+.oea-ticker .item { display: inline-flex; align-items: baseline; gap: .55rem; padding: 0 1.1rem; white-space: nowrap; font-size: var(--cds-font-size-body); border-right: 1px solid rgba(255,255,255,.14); }
+.oea-ticker .lbl { font-weight: 700; letter-spacing: .03em; }
+.oea-ticker .pv { color: var(--tk-muted); }
+.oea-ticker .pv.d { color: var(--tk-d); }
+.oea-ticker .pv.r { color: var(--tk-r); }
+.oea-ticker .pv.win { font-weight: 700; }
+@media (prefers-reduced-motion: no-preference) {
+  .oea-ticker-track { animation: oea-tick var(--tick-dur, 240s) linear infinite; }
+  .oea-ticker:hover .oea-ticker-track { animation-play-state: paused; }
+}
+@media (prefers-reduced-motion: reduce) { .oea-ticker-win { overflow-x: auto; } .oea-ticker .seq + .seq { display: none; } }
+@keyframes oea-tick { to { transform: translateX(-50%); } }
+.oea-pending { border: 1px dashed var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); display: grid; gap: var(--cds-gap-sm); font-size: var(--cds-font-size-body); }
+.oea-pending ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+</style>
+
+<div class="oea">
+  <header class="oea-head">
+    <h1 class="oea-title">Oregon Election Atlas</h1>
+    <p class="oea-take" id="takeaway" data-source="chamber_overview"><span class="dash-skeleton">—</span></p>
+  </header>
+
+  <nav class="oea-tabs" role="tablist" aria-label="Sections">
+    <button class="oea-tab" role="tab" id="tab-night" data-tab="night" aria-selected="true">Election Night</button>
+    <button class="oea-tab" role="tab" id="tab-map" data-tab="map" aria-selected="false">District explorer</button>
+    <button class="oea-tab" role="tab" id="tab-registration" data-tab="registration" aria-selected="false">Registration</button>
+    <button class="oea-tab" role="tab" id="tab-methods" data-tab="methods" aria-selected="false">About</button>
+  </nav>
+
+  <div class="oea-controls" id="controls">
+    <div class="oea-seg" role="group" aria-label="District type" id="chamber-seg">
+      <button type="button" data-ch="house" aria-pressed="true">State House</button>
+      <button type="button" data-ch="senate" aria-pressed="false">State Senate</button>
+      <button type="button" data-ch="congress" aria-pressed="false">Congress</button>
+      <button type="button" data-ch="county" aria-pressed="false">Statewide</button>
+    </div>
+    <label class="oea-label" id="colorby-wrap">Color by
+      <select class="oea-select" id="colorby" aria-label="Color the map by">
+        <option value="baseline">Partisan baseline (6 statewide races)</option>
+        <option value="holder">Who holds the seat</option>
+        <option value="pres_2024">2024 President margin</option>
+        <option value="gov_2022">2022 Governor margin</option>
+        <option value="reg_gap">Registration, D minus R</option>
+        <option value="shift">Registration shift since Sep 2022</option>
+      </select>
+    </label>
+  </div>
+
+  <section id="map" class="oea-page" hidden>
+    <div class="oea-card oea-seats-card" id="seats-card" data-source="district_summary officeholders">
+      <div class="oea-panel-head">
+        <h3 id="seats-title">Makeup of the chamber</h3>
+        <div class="oea-seg" role="group" aria-label="Which makeup to show" id="seats-when">
+          <button type="button" data-when="now" aria-pressed="true">Today</button>
+          <button type="button" data-when="2024" aria-pressed="false">After the 2024 election</button>
+        </div>
+      </div>
+      <div class="oea-seats">
+        <div class="oea-seatbox" id="seatbox"><div class="oea-tip" id="seattip" hidden></div></div>
+        <div class="oea-seatkey" id="seatkey"></div>
+      </div>
+    </div>
+    <div class="oea-grid">
+      <div class="oea-card" id="map-card" data-source="geo district_summary">
+        <div class="oea-mapbox" id="mapbox">
+          <svg class="oea-map" id="mapsvg" role="img" aria-label="Map of Oregon districts" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="oea-zoom">
+            <button type="button" class="oea-btn" id="zin" aria-label="Zoom in">+</button>
+            <button type="button" class="oea-btn" id="zout" aria-label="Zoom out">−</button>
+          </div>
+          <div class="oea-tip" id="tip" hidden></div>
+        </div>
+        <div class="oea-controls">
+          <span class="oea-label">Jump to</span>
+          <button type="button" class="oea-btn" data-zoom="state">Whole state</button>
+          <button type="button" class="oea-btn" data-zoom="pdx">Portland metro</button>
+          <button type="button" class="oea-btn" data-zoom="salem">Salem</button>
+          <button type="button" class="oea-btn" data-zoom="eugene">Eugene</button>
+          <button type="button" class="oea-btn" data-zoom="bend">Bend</button>
+          <button type="button" class="oea-btn" data-zoom="medford">Medford</button>
+        </div>
+        <div class="oea-legend" id="legend"></div>
+        <p class="oea-note">Click a district for its file. Drag to pan; pinch or Ctrl + scroll to zoom.</p>
+      </div>
+      <aside class="oea-card" id="panel" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <section id="night" class="oea-page">
+    <div class="oea-ticker" role="marquee" aria-label="Results ticker: Democratic and Republican vote share in every race" data-source="live_races live_results">
+      <span class="oea-ticker-tag">Unofficial results</span>
+      <div class="oea-ticker-win"><div class="oea-ticker-track" id="night-ticker-track"></div></div>
+    </div>
+    <div class="oea-nstatus" id="night-status" data-source="live_status"></div>
+    <p class="oea-rehearsal" id="night-rehearsal" hidden>Rehearsal: these are simulated numbers made up to test the page. They are not real results and will be cleared before election night.</p>
+    <div class="oea-controls">
+      <div class="oea-seg" role="group" aria-label="Which races" id="night-seg">
+        <button type="button" data-ch="house" aria-pressed="true">State House</button>
+        <button type="button" data-ch="senate" aria-pressed="false">State Senate</button>
+        <button type="button" data-ch="congress" aria-pressed="false">Congress</button>
+        <button type="button" data-ch="county" aria-pressed="false">Statewide</button>
+      </div>
+    </div>
+    <div class="oea-ngrid">
+      <div class="oea-ncol">
+        <div class="oea-card" id="night-seats-card" data-source="live_races live_status officeholders">
+          <h3 id="night-seats-title">Tracker</h3>
+          <div id="night-seathead"></div>
+          <div class="oea-seatbox" id="night-seatbox"></div>
+          <div class="oea-legend">
+            <span><i style="background:var(--oea-d)"></i>Called D</span>
+            <span><i style="background:var(--oea-r)"></i>Called R</span>
+            <span><i style="background:transparent;box-shadow:inset 0 0 0 2px var(--oea-d)"></i><i style="background:transparent;box-shadow:inset 0 0 0 2px var(--oea-r)"></i>Not called, outlined in the leader's color</span>
+            <span><i style="background:transparent;border:1.5px dashed var(--color-fg-muted)"></i>No results yet</span>
+            <span><i style="background:var(--color-fg-muted);opacity:.45"></i>Not on the ballot this year</span>
+          </div>
+        </div>
+        <div class="oea-card" id="night-map-card" data-source="geo live_races live_counties">
+          <div class="oea-seg" role="group" aria-label="Statewide race shown on the map" id="night-race-seg" hidden>
+            <button type="button" data-race="governor" aria-pressed="true">Governor</button>
+            <button type="button" data-race="ussenate" aria-pressed="false">U.S. Senate</button>
+          </div>
+          <div class="oea-mapbox" id="night-mapbox">
+            <svg class="oea-map" id="night-svg" role="img" aria-label="Map of results by district" preserveAspectRatio="xMidYMid meet"></svg>
+            <div class="oea-tip" id="night-tip" hidden></div>
+          </div>
+          <div class="oea-controls">
+            <span class="oea-label">Jump to</span>
+            <button type="button" class="oea-btn" data-nzoom="state">Whole state</button>
+            <button type="button" class="oea-btn" data-nzoom="pdx">Portland metro</button>
+            <button type="button" class="oea-btn" data-nzoom="salem">Salem</button>
+            <button type="button" class="oea-btn" data-nzoom="eugene">Eugene</button>
+            <button type="button" class="oea-btn" data-nzoom="bend">Bend</button>
+          </div>
+          <p class="oea-note" id="night-map-note">Grey until a race has results; tinted toward whoever leads; solid once called.</p>
+        </div>
+      </div>
+      <div class="oea-ncol">
+        <div class="oea-card">
+          <h3>Key races</h3>
+          <div class="oea-nstrip" id="night-top" data-source="live_races live_results"></div>
+        </div>
+        <div class="oea-card" id="night-detail" data-source="live_races live_results district_summary"></div>
+      </div>
+    </div>
+    <div class="oea-card">
+      <div class="oea-panel-head"><h3>Atlas Desk</h3><span class="oea-note">This site’s own commentary and projections, not an official account. Newest first; click a post to open its race.</span></div>
+      <div class="oea-feed" id="night-feed" data-source="live_feed"></div>
+    </div>
+  </section>
+
+
+
+  <section id="registration" class="oea-page" hidden>
+    <div class="oea-tiles" id="reg-tiles" data-source="state_registration"></div>
+    <div class="oea-grid">
+      <div class="oea-card">
+        <h3>Statewide party shares, September snapshots</h3>
+        <p class="oea-note">Share of all registered voters. Non-affiliated is the largest group; most new registrations arrive through Oregon Motor Voter.</p>
+        <div class="oea-chart" id="reg-chart" data-source="reg_shares"></div>
+      </div>
+      <div class="oea-card">
+        <h3>Biggest registration shifts since Sep 2022</h3>
+        <p class="oea-note">Change in the Democratic minus Republican gap, in points, for the district type picked above.</p>
+        <div class="oea-tw">
+          <table id="shift-table" data-source="district_summary" data-row-key="key">
+            <thead><tr><th data-field="district">District</th><th data-field="reg_gap_label" class="n">Reg D−R now</th><th data-field="shift_label">Shift</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="oea-card">
+      <h3>Registration by county, September 2026</h3>
+      <div class="oea-tw scroll">
+        <table id="county-table" data-source="district_summary" data-row-key="key">
+          <thead><tr>
+            <th data-field="district">County</th>
+            <th data-field="registered" class="n">Registered</th>
+            <th data-field="reg_D" class="n">Dem %</th>
+            <th data-field="reg_R" class="n">Rep %</th>
+            <th data-field="reg_NAV" class="n">Non-affiliated %</th>
+            <th data-field="reg_gap_label" class="n">D−R</th>
+            <th data-field="shift_label">Shift since ’22</th>
+            <th data-field="pres_2024_label" class="n">Pres ’24</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+
+  <section id="methods" class="oea-page" hidden>
+    <div class="oea-prose">
+      <h3>About this site</h3>
+      <p>The Oregon Election Atlas is an independent tracker of Oregon elections. It is not affiliated with the Oregon Secretary of State, any county elections office, or any news organization.</p>
+      <h3>Election night results are unofficial</h3>
+      <p>Vote counts come from the Oregon Secretary of State’s unofficial results site, <a href="https://results.oregonvotes.gov" target="_blank" rel="noopener">results.oregonvotes.gov</a>, read about every 15 minutes from 8:00 PM on election night. Counties keep counting for days after the election, and results become official only when the Secretary of State certifies them. Always check the official site before relying on a number.</p>
+      <h3>How races are called here</h3>
+      <p>Race calls on this site are its own projections, not official results and not calls by any news organization. A race is called when the leader cannot be caught: either the lead is larger than the estimated number of ballots still to be counted, or the runner-up would need at least 75% of the remaining ballots to catch up, and no projection is made before about 30% of the expected vote is counted. Races with a single candidate on the ballot are called when polls close. Calls are reviewed by a person before they are published and can be withdrawn if the count changes.</p>
+      <p>The estimate of ballots still to be counted uses each district’s registered voters and statewide ballot returns, padded so that it errs on the side of waiting. It is an estimate; the share counted shown for each race is approximate.</p>
+      <h3>The desk feed</h3>
+      <p>Posts in the Atlas Desk feed are written by this site to summarize the results it shows. They are not from an official account or any real social media account.</p>
+      <h3>District data</h3>
+      <ul>
+        <li>Voter registration: Oregon Secretary of State monthly registration reports.</li>
+        <li>Past results: county canvass results compiled by OpenElections, checked against the Secretary of State’s certified abstracts.</li>
+        <li>Statewide races by district: precinct results summed to each district; precincts split between districts are divided in proportion to their own legislative vote.</li>
+        <li>District boundaries: U.S. Census Bureau 2022 cartographic boundary files (the maps adopted in 2021).</li>
+        <li>Candidates on the 2026 ballot: compiled from public candidate lists; confirm against the official Voters’ Pamphlet.</li>
+        <li>Legislators: Open States; members of Congress: the congress-legislators project.</li>
+      </ul>
+      <p>Found an error? Corrections are welcome.</p>
+    </div>
+  </section>
+</div>
+
+</div>
+<footer class="pub-foot">
+  <div>Oregon Election Atlas is an independent site, not affiliated with the Oregon Secretary of State or any county elections office. Results are unofficial until certified by the Secretary of State. Official results: <a href="https://results.oregonvotes.gov" target="_blank" rel="noopener">results.oregonvotes.gov</a>.</div>
+  <div>Race calls are projections made by this site. See <a href="#methods">About</a> for how calls are made and where every number comes from.</div>
+</footer>
+<script src="shim.js"></script>
+<script src="calcs.js"></script>
+<script src="atlas.js"></script>
+<script src="night.js"></script>
+</body>
+</html>
