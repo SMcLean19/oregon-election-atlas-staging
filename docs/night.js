@@ -104,6 +104,7 @@ function drawNightSeats() {
   const box = O.$('#night-seatbox'), head = O.$('#night-seathead');
   [...box.querySelectorAll('svg')].forEach((n) => n.remove());
   head.replaceChildren();
+  if (!O.$('#night-seattip')) { const t = nel('div', 'oea-tip'); t.id = 'night-seattip'; t.hidden = true; box.append(t); }
   const races = O.rows('live_races'), held = O.rows('officeholders'), st = (O.rows('live_status') || [])[0];
   if (!races || !held || !st) return;
   if (N.chamber === 'county') {
@@ -124,9 +125,9 @@ function drawNightSeats() {
   ];
   const order = (s) => (s.party === 'D' ? 0 : s.lean === 'D' ? 1 : s.party === 'R' ? 4 : s.lean === 'R' ? 3 : 2);
   seats.sort((a, b) => order(a) - order(b) || (a.hold === b.hold ? 0 : a.hold ? -1 : 1) * (order(a) < 2 ? 1 : -1));
-  const W = Math.max(280, Math.min(720, box.clientWidth || 520)), H = Math.round(W * 0.52);
+  const W = Math.max(280, Math.min(720, box.clientWidth || 520)), H = Math.round(W * 0.52), TOP = 20, FOOT = 26;
   const { pts, rad, R0, base } = O.hemicycle(seats.length, W, H);
-  const s = d3.create('svg').attr('viewBox', `0 0 ${W} ${H}`).attr('width', '100%').attr('role', 'img').attr('aria-label', 'Seats called so far');
+  const s = d3.create('svg').attr('viewBox', `0 ${-TOP} ${W} ${H + TOP + FOOT}`).attr('width', '100%').attr('role', 'img').attr('aria-label', 'Seats called so far');
   s.selectAll('circle').data(seats).join('circle').attr('class', 'seat')
     .attr('cx', (d, i) => pts[i].x).attr('cy', (d, i) => pts[i].y).attr('r', rad)
     .attr('fill', (d) => (d.party ? pcolor(d.party) : 'var(--color-panel)'))
@@ -137,13 +138,30 @@ function drawNightSeats() {
     .attr('tabindex', (d) => (d.race ? 0 : null))
     .on('click', (ev, d) => { if (d.race) selectRace(d.key, true); })
     .on('keydown', (ev, d) => { if (d.race && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); selectRace(d.key, true); } })
-    .append('title').text((d) => (d.hold ? `${O.dname(ch, d.district)}: ${d.name} (${d.party}), not up this year` : `${d.race.label}: ${d.race.status === 'called' ? d.race.winner + ' wins' : d.race.status === 'counting' ? d.race.leader + ' leads' : 'waiting'}`));
+    .on('mousemove', (ev, d) => seatTip(ev, d, ch))
+    .on('mouseleave', () => { O.$('#night-seattip').hidden = true; });
   const need = ch === 'house' ? st.house_majority : ch === 'senate' ? st.senate_majority : null;
   if (need) {
-    s.append('line').attr('x1', W / 2).attr('x2', W / 2).attr('y1', 2).attr('y2', Math.max(4, base - R0 - rad - 4))
+    s.append('line').attr('x1', W / 2).attr('x2', W / 2).attr('y1', 4).attr('y2', Math.max(8, base - R0 - rad - 4))
       .attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '3 3');
-    s.append('text').attr('x', W / 2).attr('y', base).attr('text-anchor', 'middle').text(`${need} for a majority`);
+    s.append('text').attr('x', W / 2).attr('y', -6).attr('text-anchor', 'middle').text(`${need} for a majority`);
   }
+  // counts written under each side of the arc
+  const cnt = (f) => seats.filter(f).length;
+  const wonD = cnt((x) => x.party === 'D'), wonR = cnt((x) => x.party === 'R');
+  const leadD = cnt((x) => !x.party && x.lean === 'D'), leadR = cnt((x) => !x.party && x.lean === 'R');
+  const wait = cnt((x) => !x.party && !x.lean);
+  const yl = H + FOOT - 8;
+  const lab = (x, anchor, parts) => {
+    const t = s.append('text').attr('class', 'arc-count').attr('x', x).attr('y', yl).attr('text-anchor', anchor);
+    parts.forEach(([txt, cls]) => t.append('tspan').attr('class', cls || null).text(txt));
+  };
+  const hasHold = seats.some((x) => x.hold), wide = W >= 560;
+  const WON = wide ? (hasHold ? ' seated or called' : ' called') : ' won', LEAD = wide ? ' leading' : ' lead', WAIT = wide ? ' waiting' : ' wait';
+  const edge = Math.min(W / 2 - 10, H - 16);
+  lab(Math.max(2, W / 2 - edge), 'start', [[`${wonD}`, 'n d'], [WON], ['  ·  '], [`${leadD}`, 'n'], [LEAD]]);
+  if (wait) lab(W / 2, 'middle', [[`${wait}`, 'n'], [WAIT]]);
+  lab(Math.min(W - 2, W / 2 + edge), 'end', [[`${leadR}`, 'n'], [LEAD + '  ·  '], [`${wonR}`, 'n r'], [WON]]);
   box.prepend(s.node());
   // header: what each side has and needs
   const nD = st[`${ch}_D`], nR = st[`${ch}_R`], open = st[`${ch}_open`];
@@ -171,6 +189,28 @@ function drawNightSeats() {
   }
   row.append(mid, side('R', nR, leanR, `${ch}_R`));
   head.append(row);
+}
+
+function seatTip(ev, d, ch) {
+  const tip = O.$('#night-seattip'), box = O.$('#night-seatbox').getBoundingClientRect();
+  tip.replaceChildren(nel('div', 't', O.dname(ch, d.district)));
+  if (d.hold) {
+    tip.append(nel('b', O.pcls(d.party), `${d.name} (${d.party})`), nel('div', 'muted', 'Not on the ballot this year'));
+  } else {
+    const r = d.race;
+    const res = (O.rows('live_results') || []).filter((x) => x.race_id === r.race_id).sort((a, b) => b.votes - a.votes).slice(0, 2);
+    if (r.status === 'called') tip.append(nel('b', O.pcls(r.winner_party), `${r.winner} (${r.winner_party}) wins${r.flip ? ' · flip' : ''}`));
+    else if (r.status === 'counting') tip.append(nel('b', O.pcls(r.leader_party), `${r.leader} (${r.leader_party}) leads by ${r.margin_pct ?? 0} pts`));
+    else tip.append(nel('div', 'muted', 'Waiting for results'));
+    for (const x of res) if (x.pct != null) tip.append(nel('div', '', `${x.candidate} (${x.party}) ${x.pct.toFixed(1)}%`));
+    if (r.status === 'counting') tip.append(nel('div', 'muted', `About ${r.pct_in_est}% counted`));
+    if (r.field === 1) tip.append(nel('div', 'muted', 'Unopposed'));
+  }
+  tip.hidden = false;
+  let x = ev.clientX - box.left + 12, y = ev.clientY - box.top + 12;
+  if (x + tip.offsetWidth > box.width) x = Math.max(0, ev.clientX - box.left - tip.offsetWidth - 12);
+  if (y + tip.offsetHeight > box.height) y = Math.max(0, ev.clientY - box.top - tip.offsetHeight - 12);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
 }
 
 // ---------- top races strip ----------
