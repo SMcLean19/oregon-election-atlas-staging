@@ -776,7 +776,7 @@ $('#top-filter')?.addEventListener('click', (e) => {
 });
 
 dash.onData(drawAll);
-const named = location.hash.slice(1) || (window.OEA_PUBLIC ? 'night' : '');
+const named = location.hash.slice(1).replace(/^go-/, '') || (window.OEA_PUBLIC ? 'night' : '');
 if (['map', 'night', 'top', 'races', 'registration', 'money', 'methods'].includes(named)) showTab(named);
 
 window.OEA = { CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };

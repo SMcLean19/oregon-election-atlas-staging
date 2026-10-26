@@ -40,6 +40,10 @@
 html, body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); font-size: 15px; -webkit-text-size-adjust: 100%; }
 .pub-banner { background: var(--pub-banner-bg); color: var(--pub-banner-fg); border-bottom: 1px solid var(--pub-banner-line); font-size: .875rem; line-height: 1.45;
   padding: .55rem max(16px, env(safe-area-inset-right, 0px)) .55rem max(16px, env(safe-area-inset-left, 0px)); padding-top: max(.55rem, env(safe-area-inset-top, 0px)); }
+.pub-banner { display: flex; gap: .75rem; align-items: flex-start; }
+.pub-banner-text { flex: 1; min-width: 0; }
+.pub-banner-x { flex: none; appearance: none; border: 1px solid var(--pub-banner-line); background: transparent; color: inherit; font: inherit; font-size: 1.15rem; line-height: 1; width: 1.9rem; height: 1.9rem; border-radius: 6px; cursor: pointer; }
+.pub-banner-x:hover { background: color-mix(in srgb, var(--pub-banner-fg) 10%, transparent); }
 .pub-banner b { font-weight: 700; }
 .pub-banner a { color: inherit; }
 #dash-root { max-width: 1280px; margin: 0 auto; padding: 1.25rem max(16px, env(safe-area-inset-right, 0px)) 2rem max(16px, env(safe-area-inset-left, 0px)); }
@@ -52,7 +56,17 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 </style>
 </head>
 <body>
-<div class="pub-banner" role="note"><b>Unofficial results.</b> Election night numbers come from the Oregon Secretary of State’s unofficial results at <a href="https://results.oregonvotes.gov" target="_blank" rel="noopener">results.oregonvotes.gov</a>. Race calls are this site’s own projections, not official results. <span id="pub-checked"></span></div>
+<div class="pub-banner" id="pub-banner" role="note"><div class="pub-banner-text"><b>Unofficial results.</b> Election night numbers come from the Oregon Secretary of State’s unofficial results at <a href="https://results.oregonvotes.gov" target="_blank" rel="noopener">results.oregonvotes.gov</a>. Race calls are this site’s own projections, not official results. <span id="pub-checked"></span></div><button type="button" class="pub-banner-x" id="pub-banner-x" aria-label="Close this notice">&times;</button></div>
+<script>
+(function () {
+  var KEY = 'oea-banner-closed-v1', banner = document.getElementById('pub-banner');
+  try { if (localStorage.getItem(KEY) === '1') banner.hidden = true; } catch (e) { /* storage blocked: keep showing */ }
+  document.getElementById('pub-banner-x').addEventListener('click', function () {
+    banner.hidden = true;
+    try { localStorage.setItem(KEY, '1'); } catch (e) { /* ignore */ }
+  });
+})();
+</script>
 <div id="dash-root">
 <style>
 /* Layout: a county-clerk style atlas. Tab strip, then map + district file side by side; stacks when narrow. */
@@ -440,8 +454,21 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 </div>
 <footer class="pub-foot">
   <div>Oregon Election Atlas is an independent site, not affiliated with the Oregon Secretary of State or any county elections office. Results are unofficial until certified by the Secretary of State. Official results: <a href="https://results.oregonvotes.gov" target="_blank" rel="noopener">results.oregonvotes.gov</a>.</div>
-  <div>Race calls are projections made by this site. See <a href="#methods">About</a> for how calls are made and where every number comes from.</div>
+  <div>Race calls are projections made by this site. See <a href="#go-methods" id="pub-about">About</a> for how calls are made and where every number comes from.</div>
 </footer>
+<script>
+window.addEventListener('hashchange', function () {
+  var m = location.hash.match(/^#go-([a-z]+)$/), tab = m && document.getElementById('tab-' + m[1]);
+  if (tab && tab.getAttribute('aria-selected') !== 'true') tab.click();
+});
+document.getElementById('pub-about').addEventListener('click', function (e) {
+  var tab = document.getElementById('tab-methods');
+  if (!tab) return;
+  e.preventDefault();
+  tab.click();
+  window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+});
+</script>
 <script src="shim.js"></script>
 <script src="calcs.js"></script>
 <script src="atlas.js"></script>

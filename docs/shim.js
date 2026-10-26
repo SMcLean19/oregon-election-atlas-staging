@@ -31,7 +31,8 @@
       return { status: failed.has(id) ? 'error' : 'loading', data: [] };
     },
     onData(fn) { cbs.push(fn); try { fn(); } catch (e) { console.error(e); } },
-    setLink(name) { try { history.replaceState(null, '', '#' + name); } catch (e) { /* ignore */ } },
+    // '#go-<tab>' never matches an element id, so the browser does not jump down the page to it on load
+    setLink(name) { try { history.replaceState(null, '', '#go-' + name); } catch (e) { /* ignore */ } },
     params() { return {}; }, setParams() {}, resetParams() {}, refresh() {}, colors: [],
   };
   async function load(id, fresh) {

@@ -414,7 +414,7 @@ function drawTicker() {
       b.append(nel('span', 'lbl', it.label));
       if (it.unopposed) {
         const w = it.parts[0];
-        b.append(nel('span', 'pv ' + (w ? w.p.toLowerCase() : ''), `${w ? w.p : ''} unopposed ✓`));
+        b.append(nel('span', 'pv ' + (w ? w.p.toLowerCase() : ''), `${w ? w.p : ''} unopposed${it.status === 'called' ? ' ✓' : ''}`));
       } else {
         for (const pt of it.parts) {
           const v = nmark(nel('span', 'pv ' + pt.p.toLowerCase() + (pt.win ? ' win' : ''),
