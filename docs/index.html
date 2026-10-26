@@ -56,7 +56,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 <div id="dash-root">
 <style>
 /* Layout: a county-clerk style atlas. Tab strip, then map + district file side by side; stacks when narrow. */
-.oea { --oea-d: #2f69c0; --oea-r: #c33f37; --oea-toss: #8d6cc0; font-family: var(--font-anthropic-sans); color: var(--color-fg); display: grid; gap: var(--cds-gap-lg); }
+.oea { --oea-d: #2f69c0; --oea-r: #c33f37; --oea-toss: #8d6cc0; --oea-swing: #8d6cc0; --oea-close: #e2a62b; font-family: var(--font-anthropic-sans); color: var(--color-fg); display: grid; gap: var(--cds-gap-lg); }
 .oea-head { display: grid; gap: var(--cds-gap-xs); }
 .oea-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
 .oea-take { color: var(--color-fg-muted); font-size: var(--cds-font-size-body); margin: 0; max-width: 70ch; }
@@ -198,6 +198,12 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-tweet .txt.link { cursor: pointer; }
 .oea-tweet .txt.link:hover { text-decoration: underline; }
 .oea > *, .oea-page { min-width: 0; }
+.oea-page:not([hidden]) { display: grid; gap: var(--cds-gap-lg); align-content: start; }
+#night:not([hidden]) { gap: var(--cds-gap-md); }
+.oea-ngroup { margin: var(--cds-gap-xs) 0 0; font-size: var(--cds-font-size-caption); text-transform: uppercase; letter-spacing: .06em; color: var(--color-fg-muted); }
+.oea-ngroup:first-child { margin-top: 0; }
+#night-detail { min-height: 16rem; }
+#night-seatbox { min-height: 12rem; }
 .oea-ticker { min-width: 0; max-width: 100%; --tk-bg: #0f1722; --tk-fg: #f3f5f8; --tk-muted: #9aa6b6; --tk-d: #8fb8ff; --tk-r: #ff9a8f; display: flex; align-items: stretch; background: var(--tk-bg); color: var(--tk-fg); border-radius: var(--cds-radius); overflow: hidden; font-variant-numeric: tabular-nums; min-height: 2.4rem; }
 .oea-ticker-tag { flex: none; display: flex; align-items: center; padding: 0 var(--cds-pad-md); background: #c33f37; color: #fff; font-size: var(--cds-font-size-caption); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
 .oea-ticker-win { flex: 1; min-width: 0; overflow: hidden; display: flex; align-items: center; }
@@ -336,6 +342,12 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
             <button type="button" class="oea-btn" data-nzoom="salem">Salem</button>
             <button type="button" class="oea-btn" data-nzoom="eugene">Eugene</button>
             <button type="button" class="oea-btn" data-nzoom="bend">Bend</button>
+          </div>
+          <div class="oea-legend">
+            <span><i style="background:var(--color-border-line)"></i>No results yet</span>
+            <span><i style="background:var(--oea-close)"></i>Too close to call</span>
+            <span><i style="background:var(--oea-d)"></i>Called D</span>
+            <span><i style="background:var(--oea-r)"></i>Called R</span>
           </div>
           <p class="oea-note" id="night-map-note">Grey until a race has results; tinted toward whoever leads; solid once called.</p>
         </div>

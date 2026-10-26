@@ -53,11 +53,14 @@ function ratingColor(r) {
   const t = r.startsWith('Safe') ? 1 : r.startsWith('Likely') ? 0.62 : 0.32;
   return d3.interpolateRgb(NEUTRAL, r.endsWith('D') ? CD() : CR())(t);
 }
+const SWING_PTS = 4; // margins inside +/- 4 pts are drawn as swing seats, not as light party shades
+const CS = () => getComputedStyle($('.oea')).getPropertyValue('--oea-swing').trim() || '#8d6cc0';
+const swing = (v, max) => (v != null && Math.abs(v) < SWING_PTS ? CS() : diverge(v, max));
 const COLOR = {
-  baseline: { f: (o) => diverge(o.baseline, 35), legend: 'ramp', max: 35, label: 'Average statewide-race margin' },
-  pres_2024: { f: (o) => diverge(o.pres_2024, 40), legend: 'ramp', max: 40, label: '2024 President margin' },
-  gov_2022: { f: (o) => diverge(o.gov_2022, 40), legend: 'ramp', max: 40, label: '2022 Governor margin' },
-  reg_gap: { f: (o) => diverge(o.reg_gap, 40), legend: 'ramp', max: 40, label: 'Registered D minus R, Sep 2026' },
+  baseline: { f: (o) => swing(o.baseline, 35), legend: 'ramp', max: 35, label: 'Average statewide-race margin' },
+  pres_2024: { f: (o) => swing(o.pres_2024, 40), legend: 'ramp', max: 40, label: '2024 President margin' },
+  gov_2022: { f: (o) => swing(o.gov_2022, 40), legend: 'ramp', max: 40, label: '2022 Governor margin' },
+  reg_gap: { f: (o) => swing(o.reg_gap, 40), legend: 'ramp', max: 40, label: 'Registered D minus R, Sep 2026' },
   shift: { f: (o) => diverge(o.shift, 5), legend: 'ramp', max: 5, label: 'Change in D−R registration gap since Sep 2022' },
   rating: { f: (o) => ratingColor(o.rating), legend: 'rating' },
   holder: { f: (o) => (o.holder_party === 'D' ? CD() : o.holder_party === 'R' ? CR() : NEUTRAL), legend: 'holder' },
@@ -186,10 +189,12 @@ function drawLegend() {
   L.replaceChildren();
   const c = COLOR[S.color];
   if (c.legend === 'ramp') {
-    const stops = d3.range(0, 1.0001, 0.125).map((t) => diverge((t * 2 - 1) * -c.max, c.max));
+    const stops = d3.range(0, 1.0001, 0.125).map((t) => diverge((t * 2 - 1) * c.max, c.max));
     const r = el('span', 'oea-ramp');
     r.style.background = `linear-gradient(90deg, ${stops.join(',')})`;
-    L.append(el('span', '', `${S.color === 'shift' ? 'Toward R' : 'R'} +${c.max}`), r, el('span', '', `${S.color === 'shift' ? 'Toward D' : 'D'} +${c.max}`), el('span', 'muted', c.label));
+    L.append(el('span', '', `${S.color === 'shift' ? 'Toward R' : 'R'} +${c.max}`), r, el('span', '', `${S.color === 'shift' ? 'Toward D' : 'D'} +${c.max}`));
+    if (S.color !== 'shift') { const s = el('span'); const i = el('i'); i.style.background = CS(); s.append(i, `Swing: within ${SWING_PTS} pts`); L.append(s); }
+    L.append(el('span', 'muted', c.label));
   } else if (c.legend === 'rating') {
     for (const r of RATING) { const s = el('span'); const i = el('i'); i.style.background = ratingColor(r); s.append(i, r); L.append(s); }
   } else {

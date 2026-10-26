@@ -38,7 +38,7 @@ function raceFill(r) {
   const neutral = O.neutral();
   if (!r) return neutral;
   if (r.status === 'called') return pcolor(r.winner_party) === 'var(--color-fg-muted)' ? O.CT() : pcolor(r.winner_party);
-  if (r.status === 'counting' && (r.leader_party === 'D' || r.leader_party === 'R')) return d3.interpolateRgb(neutral, pcolor(r.leader_party))(0.3);
+  if (r.status === 'counting') return getComputedStyle(O.$('.oea')).getPropertyValue('--oea-close').trim() || '#e2a62b';
   return neutral;
 }
 
@@ -178,6 +178,7 @@ function raceCard(r, big) {
   const c = nel('button', 'oea-ncard' + (big ? ' big' : '') + (r && r.race_id === N.sel ? ' on' : ''));
   c.type = 'button';
   if (!r) return c;
+  c.dataset.race = r.race_id;
   c.addEventListener('click', () => selectRace(r.race_id, true));
   const top = nel('div', 'top');
   top.append(nel('span', 'name', r.label));
@@ -205,19 +206,39 @@ function drawNightTop() {
   box.replaceChildren();
   const races = O.rows('live_races');
   if (!races) return;
-  races.filter((r) => r.top_rank != null).sort((a, b) => a.top_rank - b.top_rank).forEach((r) => box.append(raceCard(r)));
+  const GROUPS = [['Federal', ['ussenate', 'congress']], ['Governor', ['governor']], ['State Senate', ['senate']], ['State House', ['house']]];
+  const keyRaces = races.filter((r) => r.top_rank != null);
+  const ord = (r) => (r.chamber === 'ussenate' ? -1 : Number(r.district) || 0);
+  for (const [name, chs] of GROUPS) {
+    const list = keyRaces.filter((r) => chs.includes(r.chamber)).sort((a, b) => chs.indexOf(a.chamber) - chs.indexOf(b.chamber) || ord(a) - ord(b));
+    if (!list.length) continue;
+    box.append(nel('p', 'oea-ngroup', name));
+    list.forEach((r) => box.append(raceCard(r)));
+  }
 }
 
 // ---------- race detail ----------
 function selectRace(id, zoom) {
   N.sel = id;
-  if (id === 'governor-OR' || id === 'ussenate-OR') N.race = id.split('-')[0];
+  let full = false;
+  if (id === 'governor-OR' || id === 'ussenate-OR') {
+    const race = id.split('-')[0];
+    if (race !== N.race) { N.race = race; full = true; }
+  }
   const [ch] = id.split('-');
   if (zoom && ch !== N.chamber && ['house', 'senate', 'congress'].includes(ch)) {
     N.chamber = ch;
+    full = true;
     document.querySelectorAll('#night-seg button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.ch === ch ? 'true' : 'false'));
   }
-  drawNight();
+  if (full) drawNight();
+  else {
+    // update only what the selection touches, so nothing above the click changes height
+    ngShapes.selectAll('path').classed('sel', (d) => d.key === id);
+    ngShapes.selectAll('path.sel').raise();
+    document.querySelectorAll('#night-top .oea-ncard, #night-seatbox .oea-ncard').forEach((c) => c.classList.toggle('on', c.dataset.race === id));
+    drawNightDetail();
+  }
   if (zoom) {
     const g = (O.rows('geo') || []).find((x) => `${x.chamber}-${x.district}` === id);
     if (g) nZoomBox(O.shape(g).box, 0.6);
@@ -380,7 +401,7 @@ function drawNight() {
   document.querySelectorAll('#night-race-seg button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.race === N.race ? 'true' : 'false'));
   O.$('#night-map-note').textContent = N.chamber === 'county'
     ? `Counties shade by who leads the ${RACE[N.race]} race; darker means a wider lead. Switch races with the buttons above the map.`
-    : 'Grey until a race has results; tinted toward whoever leads; solid once called.';
+    : 'Grey: no results yet. Yellow: counting, too close to call (hover or click to see who leads). Solid blue or red: race called.';
   O.readNeutral();
   drawTicker();
   drawStatus();
