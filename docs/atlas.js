@@ -5,7 +5,9 @@ const CH = {
   congress: { label: 'Congress', short: 'CD', title: 'Congressional District', rep: 'Rep.' },
   county: { label: 'Statewide', short: '', title: 'County', rep: '' },
 };
-const NOW = '2026-09', THEN = '2022-09';
+const THEN = '2022-09';
+const monthName = (m) => (m ? new Date(`${m}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }) : '');
+const regMonth = () => { const r = rows('state_registration'); return r && r[0] ? monthName(r[0].month) : ''; };
 const S = { chamber: 'house', color: 'baseline', sel: null, tab: 'map', sort: { key: 'abs_baseline', dir: 1 }, q: '', when: 'now', topf: 'all' };
 const $ = (s, el = document) => el.querySelector(s);
 const enc = (v) => String(v).replace(/%/g, '%25').replace(/&/g, '%26').replace(/=/g, '%3D');
@@ -60,7 +62,7 @@ const COLOR = {
   baseline: { f: (o) => swing(o.baseline, 35), legend: 'ramp', max: 35, label: 'Average statewide-race margin' },
   pres_2024: { f: (o) => swing(o.pres_2024, 40), legend: 'ramp', max: 40, label: '2024 President margin' },
   gov_2022: { f: (o) => swing(o.gov_2022, 40), legend: 'ramp', max: 40, label: '2022 Governor margin' },
-  reg_gap: { f: (o) => swing(o.reg_gap, 40), legend: 'ramp', max: 40, label: 'Registered D minus R, Sep 2026' },
+  reg_gap: { f: (o) => swing(o.reg_gap, 40), legend: 'ramp', max: 40, get label() { return `Registered D minus R, ${regMonth()}`; } },
   shift: { f: (o) => diverge(o.shift, 5), legend: 'ramp', max: 5, label: 'Change in D−R registration gap since Sep 2022' },
   rating: { f: (o) => ratingColor(o.rating), legend: 'rating' },
   holder: { f: (o) => (o.holder_party === 'D' ? CD() : o.holder_party === 'R' ? CR() : NEUTRAL), legend: 'holder' },
@@ -212,26 +214,24 @@ function select(key, opts = {}) {
   if (opts.scroll) $('#panel').scrollIntoView({ block: 'nearest' });
 }
 
+// November ballot: one column per candidate (up to three), from the general-election candidate list
 function vsBlock(ch, dist) {
   const box = el('div', 'oea-vs');
-  for (const p of ['D', 'R']) {
-    const n = (rows('nominees_2026') || []).find((x) => x.chamber === ch && String(x.district) === String(dist) && x.party === p);
-    const c = el('div', p.toLowerCase());
-    const nm = el('div', '', n ? n.candidate : 'No primary nominee');
-    if (n) mark(nm, 'nominees_2026', 'candidate', { chamber: ch, district: dist, party: p });
-    c.append(nm);
-    const sm = el('small', '', p === 'D' ? 'Democrat' : 'Republican');
-    if (n && n.primary_share != null) {
-      sm.append(', ', mark(el('span', '', `${(n.primary_share * 100).toFixed(1)}%`), 'nominees_2026', 'primary_share', { chamber: ch, district: dist, party: p }), ' in primary');
-    }
-    c.append(sm);
-    box.append(c);
+  const cands = (rows('ballot_2026') || []).filter((x) => x.chamber === ch && String(x.district) === String(dist))
+    .sort((a, b) => ({ D: 0, R: 1 }[a.party] ?? 2) - ({ D: 0, R: 1 }[b.party] ?? 2));
+  if (!cands.length) { box.append(el('div', 'muted', 'No candidates listed')); return box; }
+  for (const c of cands.slice(0, 3)) {
+    const col = el('div', (c.party === 'D' || c.party === 'R' ? c.party : 'o').toLowerCase());
+    col.append(mark(el('div', '', `${c.candidate}${c.incumbent ? ' (inc.)' : ''}`), 'ballot_2026', 'candidate', { chamber: ch, district: dist, candidate: c.candidate }));
+    col.append(mark(el('small', '', c.unopposed ? `${c.nominations} · unopposed` : c.nominations), 'ballot_2026', 'nominations', { chamber: ch, district: dist, candidate: c.candidate }));
+    box.append(col);
   }
+  if (cands.length > 3) box.append(el('small', 'muted', `+${cands.length - 3} more on the ballot`));
   return box;
 }
 
 function regBlock(o, frag) {
-  frag.append(el('p', 'oea-sub', 'Registered voters, Sep 2026'));
+  frag.append(el('p', 'oea-sub', `Registered voters, ${monthName(o.reg_month)}`));
   const stack = mark(el('div', 'oea-stack'), 'district_summary');
   [['reg_D', CD()], ['reg_R', CR()], ['reg_NAV', NEUTRAL], ['reg_other', 'var(--color-fg-muted)']].forEach(([f, c]) => {
     const s = el('span'); s.style.width = (o[f] || 0) + '%'; s.style.background = c; stack.append(s);
@@ -265,13 +265,16 @@ function trendChart(ch, dist) {
 function drawTrend(wrap, data, H) {
   const W = Math.max(240, wrap.clientWidth || 300);
   const series = [['D_pct', 'Dem', CD()], ['R_pct', 'Rep', CR()], ['NAV_pct', 'Non-affil.', 'var(--color-fg-muted)']];
-  const x = d3.scalePoint(data.map((d) => d.month), [34, W - 82]);
+  const dt = (m) => new Date(`${m}-15T00:00:00Z`);
+  const x0 = d3.scaleUtc([dt(data[0].month), dt(data[data.length - 1].month)], [34, W - 100]);
+  const x = (m) => x0(dt(m));
   const all = data.flatMap((d) => series.map(([f]) => d[f]));
   const y = d3.scaleLinear([Math.floor(d3.min(all) / 5) * 5, Math.ceil(d3.max(all) / 5) * 5], [H - 22, 8]);
   const s = d3.create('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
-  s.append('g').selectAll('line').data(y.ticks(4)).join('line').attr('x1', 34).attr('x2', W - 82).attr('y1', y).attr('y2', y).attr('stroke', 'var(--cds-chart-grid)');
+  s.append('g').selectAll('line').data(y.ticks(4)).join('line').attr('x1', 34).attr('x2', W - 100).attr('y1', y).attr('y2', y).attr('stroke', 'var(--cds-chart-grid)');
   s.append('g').selectAll('text').data(y.ticks(4)).join('text').attr('x', 28).attr('y', y).attr('text-anchor', 'end').attr('dominant-baseline', 'central').text((v) => v + '%');
-  s.append('g').selectAll('text').data(data).join('text').attr('x', (d) => x(d.month)).attr('y', H - 6).attr('text-anchor', 'middle').text((d) => d.month.slice(0, 4));
+  const years = [...new Set(data.map((d) => d.month.slice(0, 4)))];
+  s.append('g').selectAll('text').data(years).join('text').attr('x', (yr) => x(data.find((d) => d.month.startsWith(yr)).month)).attr('y', H - 6).attr('text-anchor', 'middle').text((yr) => yr);
   for (const [f, name, c] of series) {
     s.append('path').attr('d', d3.line((d) => x(d.month), (d) => y(d[f]))(data)).attr('fill', 'none').attr('stroke', c).attr('stroke-width', 2).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
     const lst = data[data.length - 1];
@@ -279,7 +282,7 @@ function drawTrend(wrap, data, H) {
     s.append('text').attr('x', x(lst.month) + 6).attr('y', y(lst[f])).attr('dominant-baseline', 'central').text(`${name} ${lst[f].toFixed(1)}%`);
   }
   // keep end labels apart
-  const ends = s.selectAll('text').filter(function () { return +this.getAttribute('x') > W - 90; }).nodes().sort((a, b) => +a.getAttribute('y') - +b.getAttribute('y'));
+  const ends = s.selectAll('text').filter(function () { return +this.getAttribute('x') > W - 108; }).nodes().sort((a, b) => +a.getAttribute('y') - +b.getAttribute('y'));
   for (let i = 1; i < ends.length; i++) { const p = +ends[i - 1].getAttribute('y'), q = +ends[i].getAttribute('y'); if (q - p < 12) ends[i].setAttribute('y', p + 12); }
   wrap.replaceChildren(s.node());
 }
@@ -359,7 +362,7 @@ function drawPanel() {
     const dd = el('dd');
     if (o.holder) {
       dd.append(mark(el('span', pcls(o.holder_party), `${CH[o.chamber].rep} ${o.holder} (${o.holder_party})`), 'district_summary', 'holder', { key: o.key }));
-      if (o.holder_since) dd.append(el('span', 'muted', `, in office since ${o.holder_since}`));
+      if (o.holder_since && o.chamber === 'congress') dd.append(el('span', 'muted', `, in office since ${o.holder_since}`));
     } else dd.append(el('span', 'muted', 'Vacant or not listed'));
     dl.append(dd);
     if (o.party_switch) { dl.append(el('dt', '', 'Note')); const d2 = el('dd'); d2.append(mark(el('span', '', o.party_switch), 'district_summary', 'party_switch', { key: o.key })); dl.append(d2); }
@@ -486,7 +489,7 @@ function drawRegistration() {
       t.append(c);
       tiles.append(t);
     };
-    tile('Registered voters, Sep 2026', 'total', fmt(s.total), 'total_chg', s.total_chg, 'n');
+    tile(`Registered voters, ${monthName(s.month)}`, 'total', fmt(s.total), 'total_chg', s.total_chg, 'n');
     tile('Democrats', 'D_pct', pct(s.D_pct), 'D_chg', s.D_chg);
     tile('Republicans', 'R_pct', pct(s.R_pct), 'R_chg', s.R_chg);
     tile('Non-affiliated', 'NAV_pct', pct(s.NAV_pct), 'NAV_chg', s.NAV_chg);
@@ -499,6 +502,7 @@ function drawRegistration() {
   }
   const shiftT = $('#shift-table tbody');
   shiftT.replaceChildren();
+  const ct = $('#county-title'); if (ct && regMonth()) ct.textContent = `Registration by county, ${regMonth()}`;
   const cT = $('#county-table tbody');
   cT.replaceChildren();
   if (!sum) return;

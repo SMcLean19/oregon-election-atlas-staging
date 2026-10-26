@@ -54,12 +54,13 @@ dash.calc('race_results', {
 dash.calc('district_summary', {
   title: 'District scorecard',
   description: 'Per district: registration and its shift since Sep 2022, the average margin across six statewide races (the baseline), the rating that baseline gives, the last result, the officeholder and the 2026 nominees.',
-  inputs: ['reg_shares', 'race_margins', 'race_results', 'officeholders', 'nominees_2026'],
-  fn: (reg_shares, race_margins, race_results, officeholders, nominees_2026) => {
+  inputs: ['reg_shares', 'race_margins', 'race_results', 'officeholders', 'ballot_2026'],
+  fn: (reg_shares, race_margins, race_results, officeholders, ballot_2026) => {
     const BASE = ['2024 President', '2024 Secretary of State', '2024 Attorney General', '2024 State Treasurer', '2022 Governor', '2022 U.S. Senate'];
     const lab = (m) => (m == null ? '' : m === 0 ? 'Even' : (m > 0 ? 'D+' : 'R+') + Math.abs(m).toFixed(1));
     const r1 = (v) => Math.round(10 * v) / 10;
     const out = new Map();
+    const latest = reg_shares.reduce((m, r) => (r.month > m ? r.month : m), '');
     const get = (ch, d) => {
       const key = `${ch}-${d}`;
       if (!out.has(key)) out.set(key, { key, chamber: ch, district: String(d) });
@@ -68,7 +69,7 @@ dash.calc('district_summary', {
     for (const r of reg_shares) {
       if (r.chamber === 'state') continue;
       const o = get(r.chamber, r.district);
-      if (r.month === '2026-09') Object.assign(o, { registered: r.total, reg_D: r.D_pct, reg_R: r.R_pct, reg_NAV: r.NAV_pct, reg_other: r.other_pct, reg_gap: r.gap });
+      if (r.month === latest) Object.assign(o, { reg_month: r.month, registered: r.total, reg_D: r.D_pct, reg_R: r.R_pct, reg_NAV: r.NAV_pct, reg_other: r.other_pct, reg_gap: r.gap });
       if (r.month === '2022-09') o.gap_2022 = r.gap;
     }
     const sums = {};
@@ -88,7 +89,10 @@ dash.calc('district_summary', {
     const held = {};
     for (const p of officeholders) held[`${p.chamber}-${p.district}`] = p;
     const nom = {};
-    for (const n of nominees_2026) nom[`${n.chamber}-${n.district}-${n.party}`] = n.candidate;
+    for (const b of ballot_2026) {
+      if (/Democratic/.test(b.nominations)) nom[`${b.chamber}-${b.district}-D`] = b.candidate;
+      if (/Republican/.test(b.nominations)) nom[`${b.chamber}-${b.district}-R`] = b.candidate;
+    }
     return [...out.values()].map((o) => {
       const b = sums[o.key] ? r1(sums[o.key].reduce((a, v) => a + v, 0) / sums[o.key].length) : null;
       const a = Math.abs(b), side = b > 0 ? 'D' : 'R';
@@ -142,14 +146,15 @@ dash.calc('chamber_overview', {
 
 dash.calc('state_registration', {
   title: 'Statewide registration change',
-  description: 'Statewide party shares in September 2026 and their change in points since September 2022.',
+  description: 'Statewide party shares in the latest monthly report and their change in points since September 2022.',
   inputs: ['reg_shares'],
   fn: (reg_shares) => {
-    const now = reg_shares.find((r) => r.id === 'state-OR-2026-09');
+    const latest = reg_shares.reduce((m, r) => (r.month > m ? r.month : m), '');
+    const now = reg_shares.find((r) => r.id === `state-OR-${latest}`);
     const then = reg_shares.find((r) => r.id === 'state-OR-2022-09');
     if (!now || !then) return [];
     const d = (f) => Math.round(10 * (now[f] - then[f])) / 10;
-    return [{ id: 'OR', total: now.total, D_pct: now.D_pct, R_pct: now.R_pct, NAV_pct: now.NAV_pct, gap: now.gap,
+    return [{ id: 'OR', month: latest, total: now.total, D_pct: now.D_pct, R_pct: now.R_pct, NAV_pct: now.NAV_pct, gap: now.gap,
       total_chg: now.total - then.total, D_chg: d('D_pct'), R_chg: d('R_pct'), NAV_chg: d('NAV_pct'), gap_chg: d('gap') }];
   },
 });

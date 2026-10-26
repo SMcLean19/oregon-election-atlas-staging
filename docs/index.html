@@ -107,7 +107,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-stack span { display: block; height: 100%; }
 .oea-stack-key { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
 .oea-stack-key b { color: var(--color-fg); font-weight: 600; }
-.oea-vs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cds-gap-sm); }
+.oea-vs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); gap: var(--cds-gap-sm); }
 .oea-vs > div { border-left: 3px solid var(--color-border-line); padding-left: var(--cds-pad-sm); font-size: var(--cds-font-size-body); min-width: 0; }
 .oea-vs .d { border-left-color: var(--oea-d); }
 .oea-vs .r { border-left-color: var(--oea-r); }
@@ -376,7 +376,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
     <div class="oea-tiles" id="reg-tiles" data-source="state_registration"></div>
     <div class="oea-grid">
       <div class="oea-card">
-        <h3>Statewide party shares, September snapshots</h3>
+        <h3>Statewide party shares since 2022</h3>
         <p class="oea-note">Share of all registered voters. Non-affiliated is the largest group; most new registrations arrive through Oregon Motor Voter.</p>
         <div class="oea-chart" id="reg-chart" data-source="reg_shares"></div>
       </div>
@@ -392,7 +392,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
       </div>
     </div>
     <div class="oea-card">
-      <h3>Registration by county, September 2026</h3>
+      <h3 id="county-title">Registration by county</h3>
       <div class="oea-tw scroll">
         <table id="county-table" data-source="district_summary" data-row-key="key">
           <thead><tr>
