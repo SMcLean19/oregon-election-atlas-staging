@@ -99,6 +99,7 @@ function shape(row) {
 const svg = d3.select('#mapsvg').attr('viewBox', `0 0 ${VW} ${VH}`);
 const gRoot = svg.append('g');
 const gShapes = gRoot.append('g');
+const gPrec = gRoot.append('g').attr('class', 'oea-prec');
 const gLabels = gRoot.append('g');
 let K = 1;
 const zoom = d3.zoom()
@@ -185,7 +186,103 @@ function drawMap() {
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
     .text((d) => (S.chamber === 'county' ? d.o.district : d.o.district));
   sizeLabels();
+  drawPrecincts();
   drawLegend();
+}
+
+// ---------- precincts (inside a selected county; test: Marion) ----------
+const PREC_RACE = () => (S.color === 'gov_2022' ? [2022, 'Governor'] : [2024, 'President']);
+const PSHAPE = {};
+function precShape(r) {
+  const k = `${r.county}|${r.precinct}`;
+  if (PSHAPE[k]) return PSHAPE[k];
+  const g = JSON.parse(r.geometry);
+  let d = '';
+  for (const poly of g.coordinates) for (const ring of poly) d += 'M' + ring.map(([lo, la]) => proj(lo, la).map((v) => v.toFixed(2)).join(',')).join('L') + 'Z';
+  return (PSHAPE[k] = { k, d, county: r.county, precinct: r.precinct });
+}
+function selCounty() {
+  return S.chamber === 'county' && S.sel && S.sel.startsWith('county-') ? S.sel.slice(7) : null;
+}
+function precResults(county) {
+  const [yr, race] = PREC_RACE();
+  return new Map((rows('precinct_results') || []).filter((x) => x.county === county && x.year === yr && x.race === race).map((x) => [x.precinct, x]));
+}
+function drawPrecincts() {
+  const county = selCounty();
+  const shapes = county ? (rows('precincts') || []).filter((r) => r.county === county) : [];
+  const res = county ? precResults(county) : new Map();
+  const feats = shapes.map((r) => ({ ...precShape(r), r: res.get(r.precinct) }));
+  gShapes.selectAll('path.dist').classed('dim', (d) => !!(feats.length && d.key !== S.sel));
+  gPrec.selectAll('path').data(feats, (d) => d.k).join('path')
+    .attr('d', (d) => d.d)
+    .attr('fill', (d) => (d.r && d.r.total ? swing(d.r.margin, 40) : NEUTRAL))
+    .attr('class', (d) => (d.precinct === S.prec ? 'on' : null))
+    .attr('fill-rule', 'evenodd')
+    .attr('vector-effect', 'non-scaling-stroke')
+    .on('mousemove', (ev, d) => precTip(ev, d))
+    .on('mouseleave', () => { tip.hidden = true; })
+    .on('click', (ev, d) => { ev.stopPropagation(); S.prec = d.precinct; gPrec.selectAll('path').classed('on', (x) => x.precinct === S.prec); gPrec.selectAll('path.on').raise(); drawPanel(); });
+  gPrec.selectAll('path.on').raise();
+}
+function precTip(ev, d) {
+  const box = $('#mapbox').getBoundingClientRect();
+  const [yr, race] = PREC_RACE();
+  tip.replaceChildren(el('div', 't', `Precinct ${d.precinct} · ${d.county} County`));
+  const r = d.r;
+  if (!r || !r.total) tip.append(el('div', 'muted', `No ${yr} ${race} votes recorded for this precinct`));
+  else {
+    const pc = (v) => `${(v / r.total * 100).toFixed(1)}%`;
+    const p = el('div'); p.append(el('span', 'muted', `${race} ’${String(yr).slice(2)} `), el('b', r.margin > 0 ? 'pd' : 'pr', r.margin > 0 ? `D+${r.margin.toFixed(1)}` : `R+${(-r.margin).toFixed(1)}`)); tip.append(p);
+    tip.append(el('div', '', `D ${pc(r.D)} · R ${pc(r.R)} · other ${pc(r.other)}`), el('div', 'muted', `${fmt(r.total)} votes`));
+  }
+  tip.hidden = false;
+  let x = ev.clientX - box.left + 14, y = ev.clientY - box.top + 14;
+  if (x + tip.offsetWidth > box.width) x = Math.max(0, ev.clientX - box.left - tip.offsetWidth - 14);
+  if (y + tip.offsetHeight > box.height) y = Math.max(0, ev.clientY - box.top - tip.offsetHeight - 14);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function precinctBlock(county) {
+  const shapes = (rows('precincts') || []).filter((r) => r.county === county);
+  if (!shapes.length) return null;
+  const [yr, race] = PREC_RACE();
+  const res = precResults(county);
+  const box = el('section', 'oea-prec-panel');
+  const h = el('div', 'mh');
+  h.append(el('p', 'oea-sub', `Precincts, ${yr} ${race}`), el('span', 'oea-note', `${shapes.length} precincts`));
+  box.append(h);
+  const list = [...res.values()].filter((r) => r.total);
+  const dW = list.filter((r) => r.D > r.R).length, rW = list.filter((r) => r.R > r.D).length;
+  const sum = el('p', 'oea-note');
+  sum.append(el('b', 'pd', `${dW} D`), document.createTextNode(' · '), el('b', 'pr', `${rW} R`), document.createTextNode(` precincts won${list.length < shapes.length ? ` · ${shapes.length - list.length} with no votes` : ''}. Switch the map color to 2022 Governor for that race.`));
+  box.append(sum);
+  if (S.prec && res.has(S.prec)) {
+    const r = res.get(S.prec);
+    const d = el('dl', 'oea-kv');
+    const kv = (k, v, c) => { d.append(el('dt', '', k)); const dd = el('dd'); dd.append(mark(el('span', c || '', v), 'precinct_results', null, { id: r.id })); d.append(dd); };
+    kv('Precinct', S.prec);
+    kv('Margin', r.total ? (r.margin > 0 ? `D+${r.margin.toFixed(1)}` : `R+${(-r.margin).toFixed(1)}`) : '—', r.margin > 0 ? 'pd' : 'pr');
+    kv('Votes', `D ${fmt(r.D)} · R ${fmt(r.R)} · other ${fmt(r.other)}`);
+    box.append(d);
+  }
+  const t = el('table', 'oea-prec-table');
+  const hr = el('tr'); ['Precinct', 'D', 'R', 'Other', 'Margin'].forEach((x, i) => hr.append(el('th', i ? 'n' : '', x)));
+  const th = el('thead'); th.append(hr); t.append(th);
+  const tb = el('tbody');
+  [...res.values()].sort((a, b) => Number(a.precinct) - Number(b.precinct)).forEach((r) => {
+    const tr = el('tr'); if (r.precinct === S.prec) tr.className = 'on';
+    tr.append(el('td', '', r.precinct), el('td', 'n', fmt(r.D)), el('td', 'n', fmt(r.R)), el('td', 'n', fmt(r.other)),
+      el('td', 'n ' + (r.margin > 0 ? 'pd' : r.margin < 0 ? 'pr' : ''), r.total ? (r.margin > 0 ? `D+${r.margin.toFixed(1)}` : `R+${(-r.margin).toFixed(1)}`) : '—'));
+    tr.addEventListener('click', () => { S.prec = r.precinct; drawPrecincts(); drawPanel(); });
+    tb.append(tr);
+  });
+  t.append(tb);
+  const w = el('div', 'oea-prec-scroll'); w.append(t); box.append(w);
+  const missing = shapes.filter((x) => !res.has(x.precinct)).map((x) => x.precinct);
+  const extra = [...res.keys()].filter((k) => !shapes.some((x) => x.precinct === k));
+  if (missing.length || extra.length) box.append(el('p', 'oea-note', `${extra.length ? `Precinct ${extra.join(', ')} has results but no boundary on the county map. ` : ''}${missing.length ? `Precinct ${missing.join(', ')} is on the map with no ${yr} results.` : ''}`));
+  box.append(el('p', 'oea-note', 'Precinct results: county canvass returns (OpenElections), which add up to the certified county totals. Boundaries: county GIS, 2022 precincts.'));
+  return box;
 }
 
 function drawLegend() {
@@ -208,11 +305,14 @@ function drawLegend() {
 
 // ---------- district file ----------
 function select(key, opts = {}) {
+  if (key !== S.sel) S.prec = null;
   S.sel = key;
   gShapes.selectAll('path.dist').classed('sel', (d) => d.key === key);
   gShapes.selectAll('path.sel').raise();
+  drawPrecincts();
   drawPanel();
-  if (opts.zoom && GEO[key]) zoomBox(GEO[key].box, 0.6);
+  const hasPrec = selCounty() && (rows('precincts') || []).some((r) => r.county === selCounty());
+  if ((opts.zoom || hasPrec) && GEO[key]) zoomBox(GEO[key].box, hasPrec ? 0.8 : 0.6);
   if (opts.scroll) $('#panel').scrollIntoView({ block: 'nearest' });
 }
 
@@ -483,6 +583,7 @@ function drawPanel() {
   P.append(reg);
   if (o.chamber !== 'county') P.append(resultsTable(o.chamber, o.district));
   P.append(statewideTable(o.chamber, o.district));
+  if (o.chamber === 'county') { const pb = precinctBlock(o.district); if (pb) P.insertBefore(pb, P.children[2] || null); }
 }
 
 function drawDefaultPanel(P) {

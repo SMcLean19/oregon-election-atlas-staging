@@ -221,6 +221,18 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-money .mt i.spent { opacity: .45; }
 .oea-money .mie { display: grid; gap: 2px; }
 .oea-money .mf a { color: inherit; }
+.oea-prec path { stroke: var(--color-panel, #fff); stroke-width: .6px; cursor: pointer; }
+.oea-prec path:hover { stroke: var(--color-fg); stroke-width: 1.2px; }
+.oea-prec path.on { stroke: var(--color-fg); stroke-width: 2px; }
+path.dist.dim { opacity: .35; }
+.oea-prec-panel { display: grid; gap: var(--cds-gap-sm); margin-top: var(--cds-gap-md); padding-top: var(--cds-gap-md); border-top: 1px solid var(--color-border-line); }
+.oea-prec-panel .mh { display: flex; justify-content: space-between; align-items: baseline; gap: var(--cds-gap-sm); }
+.oea-prec-scroll { max-height: 16rem; overflow: auto; border: 1px solid var(--color-border-line); border-radius: 6px; }
+.oea-prec-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.oea-prec-table th { position: sticky; top: 0; background: var(--color-panel, #fff); text-align: left; font-weight: 600; padding: 4px 8px; border-bottom: 1px solid var(--color-border-line); }
+.oea-prec-table td { padding: 3px 8px; border-bottom: 1px solid var(--color-border-line); cursor: pointer; }
+.oea-prec-table .n { text-align: right; }
+.oea-prec-table tr.on td { background: color-mix(in srgb, var(--color-fg) 8%, transparent); font-weight: 600; }
 .oea-ncard .cp { text-align: right; }
 .oea-feed { display: grid; gap: 0; max-height: 34rem; overflow-y: auto; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
 .oea-tweet { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); gap: var(--cds-gap-sm); padding: var(--cds-pad-sm) var(--cds-pad-md); border-bottom: 1px solid var(--color-border-line); background: var(--color-bg); }
