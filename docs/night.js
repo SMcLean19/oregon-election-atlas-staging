@@ -238,6 +238,8 @@ function raceCard(r, big) {
     line.append(nm, bar, p);
     c.append(line);
   }
+  const ml = O.moneyLine && O.moneyLine(r.chamber, r.district);
+  if (ml) c.append(nel('div', 'money', `$ raised: ${ml}`));
   return c;
 }
 

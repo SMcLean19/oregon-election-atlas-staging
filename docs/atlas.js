@@ -144,6 +144,7 @@ function showTip(ev, o) {
   if (S.color === 'pres_2024') line('Pres ’24', o.pres_2024_label);
   if (S.color === 'gov_2022') line('Gov ’22', o.gov_2022_label);
   if (S.color === 'reg_gap' || S.color === 'shift') { line('Reg D−R', o.reg_gap_label); line('Shift', o.shift_label); }
+  if (o.up2026 === 'Yes' && o.chamber !== 'county') { const ml = moneyLine(o.chamber, o.district); if (ml) line('Raised', ml); }
   tip.hidden = false;
   let x = ev.clientX - box.left + 14, y = ev.clientY - box.top + 14;
   const w = tip.offsetWidth, h = tip.offsetHeight;
@@ -228,6 +229,102 @@ function vsBlock(ch, dist) {
     box.append(col);
   }
   if (cands.length > 3) box.append(el('small', 'muted', `+${cands.length - 3} more on the ballot`));
+  return box;
+}
+
+// ---------- money (2025-26 cycle) ----------
+const MONEY_START = 'Jan 1, 2025';
+const money$ = (v) => {
+  if (v == null) return '—';
+  const a = Math.abs(v), sg = v < 0 ? '−' : '';
+  if (a < 1000) return `${sg}$${Math.round(a)}`;
+  if (a < 1e6) return `${sg}$${(a / 1e3).toFixed(a < 1e4 ? 1 : 0)}K`;
+  return `${sg}$${(a / 1e6).toFixed(a < 1e7 ? 2 : 1)}M`;
+};
+const shortDate = (d) => (d ? new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '');
+const partyOrder = (p) => ({ D: 0, R: 1 }[p] ?? 2);
+function moneyRows(ch, dist) {
+  return (rows('finance') || []).filter((x) => x.chamber === ch && String(x.district) === String(dist))
+    .sort((a, b) => partyOrder(a.party) - partyOrder(b.party) || (b.raised || 0) - (a.raised || 0));
+}
+// one line for hovers and race cards: "Raised: D $412K · R $388K"
+function moneyLine(ch, dist) {
+  const m = moneyRows(ch, dist);
+  if (!m.some((x) => x.status === 'ok' && (x.party === 'D' || x.party === 'R'))) return null;
+  const part = (p) => {
+    const xs = m.filter((x) => x.party === p);
+    if (!xs.length) return null;
+    if (xs.every((x) => x.status === 'pending')) return `${p} pending`;
+    return `${p} ${money$(xs.reduce((t, x) => t + (x.raised || 0), 0))}`;
+  };
+  const parts = [part('D'), part('R')].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+function moneyBlock(ch, dist, registered) {
+  const m = moneyRows(ch, dist);
+  const box = el('section', 'oea-money');
+  if (!m.length) return box;
+  const head = el('div', 'mh');
+  head.append(el('p', 'oea-sub', 'Money, 2025–26 cycle'));
+  head.append(el('span', 'oea-note', `Since ${MONEY_START}`));
+  box.append(head);
+  const ok = m.filter((x) => x.status === 'ok');
+  const max = Math.max(1, ...ok.map((x) => Math.max(x.raised || 0, x.spent || 0)));
+  const fed = m[0].source === 'FEC';
+  for (const x of m) {
+    const row = el('div', 'mc ' + (x.party === 'D' || x.party === 'R' ? x.party.toLowerCase() : 'o'));
+    const nm = el('div', 'mn');
+    nm.append(el('b', '', x.candidate), el('span', 'muted', ` (${x.party})`));
+    row.append(nm);
+    if (x.status !== 'ok') {
+      row.append(el('div', 'oea-note', x.status === 'pending' ? 'Not yet pulled; coming in the next update'
+        : fed ? 'No money reported to the FEC' : 'No campaign committee found on ORESTAR'));
+      box.append(row);
+      continue;
+    }
+    const bar = (lbl, v, cls, f) => {
+      const r = el('div', 'mb');
+      r.append(el('span', 'ml', lbl));
+      const t = el('span', 'mt'); const i = el('i', cls); i.style.width = `${Math.max(0, (v || 0) / max * 100)}%`; t.append(i);
+      r.append(t, mark(el('span', 'mv', money$(v)), 'finance', f, { chamber: ch, district: dist, candidate: x.candidate }));
+      return r;
+    };
+    row.append(bar('Raised', x.raised, 'raised', 'raised'), bar('Spent', x.spent, 'spent', 'spent'));
+    if (x.cash_on_hand != null) row.append(mark(el('div', 'oea-note', `Cash on hand ${money$(x.cash_on_hand)}`), 'finance', 'cash_on_hand', { chamber: ch, district: dist, candidate: x.candidate }));
+    box.append(row);
+  }
+  // outside groups (independent expenditures), kept apart from the campaigns' own money
+  const ie = m.filter((x) => (x.ie_for || 0) + (x.ie_against || 0) > 0);
+  const ieKnown = m.some((x) => x.ie_for != null);
+  if (ie.length) {
+    const sec = el('div', 'mie');
+    sec.append(el('p', 'oea-sub', 'Outside groups'));
+    for (const x of ie) {
+      const p = el('div', 'oea-note');
+      const bits = [];
+      if (x.ie_for) bits.push(`${money$(x.ie_for)} for`);
+      if (x.ie_against) bits.push(`${money$(x.ie_against)} against`);
+      p.append(el('b', pcls(x.party), x.candidate.split(' ').slice(-1)[0]), document.createTextNode(` · ${bits.join(', ')}`));
+      sec.append(p);
+    }
+    box.append(sec);
+  } else if (ieKnown) {
+    box.append(el('p', 'oea-note', 'Outside groups: no independent spending reported in this race.'));
+  } else {
+    box.append(el('p', 'oea-note', 'Outside groups: coming in the next update.'));
+  }
+  const total = ok.reduce((t, x) => t + (x.raised || 0), 0);
+  if (registered && total && !m.some((x) => x.status === 'pending')) box.append(el('p', 'oea-note', `Candidates have raised $${(total / registered).toFixed(2)} per registered voter.`));
+  const thru = ok.map((x) => x.pulled_at ? x.pulled_at.slice(0, 10) : x.through).filter(Boolean).sort().pop();
+  const foot = el('p', 'oea-note mf');
+  foot.append(document.createTextNode(`${thru ? `${fed ? 'Reports through' : 'Last updated'} ${shortDate(thru)} · ` : ''}Source: `));
+  const a = el('a', '', fed ? 'FEC' : 'Oregon SOS (ORESTAR)');
+  a.href = fed ? (ok[0]?.url || 'https://www.fec.gov/') : 'https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do';
+  a.target = '_blank'; a.rel = 'noopener';
+  foot.append(a);
+  if (fed) foot.append(document.createTextNode('.'));
+  else foot.append(document.createTextNode('. State totals include in-kind gifts.'));
+  box.append(foot);
   return box;
 }
 
@@ -376,6 +473,7 @@ function drawPanel() {
   if (o.chamber !== 'county' && o.up2026 === 'Yes') {
     P.append(el('p', 'oea-sub', 'November 3, 2026 general'));
     P.append(vsBlock(o.chamber, o.district));
+    P.append(moneyBlock(o.chamber, o.district, o.registered));
   } else if (o.chamber === 'senate') {
     P.append(el('p', 'oea-note', 'This seat is next on the ballot in 2028.'));
   }
@@ -394,6 +492,7 @@ function drawDefaultPanel(P) {
     for (const [ch, lbl] of [['governor', 'Governor'], ['ussenate', 'U.S. Senate']]) {
       P.append(el('p', 'oea-note', lbl));
       P.append(vsBlock(ch, 'OR'));
+      P.append(moneyBlock(ch, 'OR', (rows('state_registration') || [])[0]?.total));
     }
     P.append(el('p', 'oea-note', 'Click a county for its registration and results.'));
     return;
@@ -719,7 +818,8 @@ function raceCard(r) {
   c.append(dl);
   c.append(mark(el('p', 'oea-why', r.reasons), 'top_races', 'reasons', { key: r.key }));
   const foot = el('div', 'foot');
-  foot.append(el('span', 'oea-note', 'Money: after the first ORESTAR pull'));
+  const ml = moneyLine(r.chamber, r.district);
+  foot.append(el('span', 'oea-note', ml ? `Raised: ${ml}` : 'Raised: coming in the next update'));
   const b = el('button', 'oea-btn', 'Open on map');
   b.type = 'button';
   b.addEventListener('click', () => {
@@ -750,7 +850,8 @@ function statewideCard(ch, title, refs) {
   }
   c.append(dl);
   const foot = el('div', 'foot');
-  foot.append(el('span', 'oea-note', 'Money and polling: to come'));
+  const ml = moneyLine(ch, 'OR');
+  foot.append(el('span', 'oea-note', ml ? `Raised: ${ml}` : 'Raised: coming in the next update'));
   c.append(foot);
   return c;
 }
@@ -780,4 +881,4 @@ dash.onData(drawAll);
 const named = location.hash.slice(1).replace(/^go-/, '') || (window.OEA_PUBLIC ? 'night' : '');
 if (['map', 'night', 'top', 'races', 'registration', 'money', 'methods'].includes(named)) showTab(named);
 
-window.OEA = { CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };
+window.OEA = { moneyLine, moneyBlock, money$, CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };

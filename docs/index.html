@@ -203,6 +203,24 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-ncard .cn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .oea-ncard .bar { height: .5rem; background: var(--color-border-line); border-radius: 3px; overflow: hidden; }
 .oea-ncard .bar i { display: block; height: 100%; border-radius: 3px; }
+.oea-ncard .money { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.oea-money { display: grid; gap: var(--cds-gap-sm); margin-top: var(--cds-gap-md); padding-top: var(--cds-gap-md); border-top: 1px solid var(--color-border-line); }
+.oea-money:empty { display: none; }
+.oea-money .mh { display: flex; justify-content: space-between; align-items: baseline; gap: var(--cds-gap-sm); flex-wrap: wrap; }
+.oea-money .mc { border-left: 3px solid var(--color-border-line); padding-left: var(--cds-pad-sm); display: grid; gap: 3px; }
+.oea-money .mc.d { border-left-color: var(--oea-d); }
+.oea-money .mc.r { border-left-color: var(--oea-r); }
+.oea-money .mn { font-size: var(--cds-font-size-body); }
+.oea-money .mb { display: grid; grid-template-columns: 3.4rem 1fr 4.2rem; gap: var(--cds-gap-sm); align-items: center; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.oea-money .ml { color: var(--color-fg-muted); }
+.oea-money .mv { text-align: right; }
+.oea-money .mt { height: .45rem; background: var(--color-border-line); border-radius: 3px; overflow: hidden; }
+.oea-money .mt i { display: block; height: 100%; border-radius: 3px; background: var(--color-fg-muted); }
+.oea-money .mc.d .mt i.raised { background: var(--oea-d); }
+.oea-money .mc.r .mt i.raised { background: var(--oea-r); }
+.oea-money .mt i.spent { opacity: .45; }
+.oea-money .mie { display: grid; gap: 2px; }
+.oea-money .mf a { color: inherit; }
 .oea-ncard .cp { text-align: right; }
 .oea-feed { display: grid; gap: 0; max-height: 34rem; overflow-y: auto; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
 .oea-tweet { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); gap: var(--cds-gap-sm); padding: var(--cds-pad-sm) var(--cds-pad-md); border-bottom: 1px solid var(--color-border-line); background: var(--color-bg); }
@@ -451,6 +469,8 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
         <li>Candidates on the 2026 ballot: compiled from public candidate lists; confirm against the official Voters’ Pamphlet.</li>
         <li>Legislators: Open States; members of Congress: the congress-legislators project.</li>
       </ul>
+      <h3>Campaign money</h3>
+      <p>Money figures cover the 2025–26 cycle: everything reported from January 1, 2025 onward. State races (Legislature and Governor) come from the Oregon Secretary of State’s campaign finance system, ORESTAR; amounts raised include in-kind gifts, and ORESTAR does not report a running balance, so cash on hand is shown for federal races only. U.S. House and Senate figures come from the Federal Election Commission and run to each campaign’s latest report. “Outside groups” are independent expenditures: money spent by groups for or against a candidate without coordinating with the campaign. Filings are amended and late reports arrive, so totals change; each panel shows when its figures were last updated. Before Election Day the figures are refreshed twice a day, and every two weeks after.</p>
       <p>Found an error? Corrections are welcome.</p>
     </div>
   </section>
