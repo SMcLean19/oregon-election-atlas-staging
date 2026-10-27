@@ -3,10 +3,13 @@
 // and polls for new election-night results every 60 seconds.
 (function () {
   window.OEA_PUBLIC = true;
-  const FILES = ['geo', 'registration', 'races', 'statewide', 'officeholders', 'nominees_2026', 'ballot_2026', 'finance', 'precincts', 'precinct_results',
+  const FILES = ['geo', 'registration', 'races', 'statewide', 'officeholders', 'nominees_2026', 'ballot_2026', 'finance',
     'live_races', 'live_results', 'live_feed', 'live_status', 'live_counties'];
   const LIVE = ['live_races', 'live_results', 'live_feed', 'live_status', 'live_counties'];
   const store = {}, failed = new Set(), calcs = [], cbs = [];
+  // big, rarely needed files load the first time a page asks for them (precinct maps)
+  const LAZY = ['precincts', 'precinct_results', 'precinct_notes'];
+  const lazyStarted = new Set();
   // Analysis that stays in the private edition: ratings, trend flags, competitiveness counts.
   const PRIVATE_FIELDS = {
     district_summary: { rating: '', watch: '', abs_baseline: null },
@@ -27,6 +30,10 @@
   window.dash = {
     calc(id, o) { if (id !== 'top_races') calcs.push({ id, o }); },
     data(id) {
+      if (LAZY.includes(id) && !store[id] && !lazyStarted.has(id)) {
+        lazyStarted.add(id);
+        load(id, false).then(fire).catch(() => { failed.add(id); });
+      }
       if (store[id]) return { status: 'ok', data: store[id], columns: store[id][0] ? Object.keys(store[id][0]) : [] };
       return { status: failed.has(id) ? 'error' : 'loading', data: [] };
     },

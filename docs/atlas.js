@@ -255,6 +255,8 @@ function precinctBlock(county) {
   const h = el('div', 'mh');
   h.append(el('p', 'oea-sub', `Precincts, ${yr} ${race}`), el('span', 'oea-note', `${shapes.length} precincts`));
   box.append(h);
+  const pnote = (rows('precinct_notes') || []).find((n) => n.county === county && n.year === yr && n.race === race);
+  if (pnote) { box.append(el('p', 'oea-note', pnote.note)); return box; }
   const list = [...res.values()].filter((r) => r.total);
   const dW = list.filter((r) => r.D > r.R).length, rW = list.filter((r) => r.R > r.D).length;
   const sum = el('p', 'oea-note');
@@ -315,7 +317,7 @@ function select(key, opts = {}) {
   gShapes.selectAll('path.sel').raise();
   drawPrecincts();
   drawPanel();
-  const hasPrec = selCounty() && (rows('precincts') || []).some((r) => r.county === selCounty());
+  const hasPrec = !!selCounty();  // counties zoom in; their precincts draw as soon as the precinct file has loaded
   if ((opts.zoom || hasPrec) && GEO[key]) zoomBox(GEO[key].box, hasPrec ? 0.8 : 0.6);
   if (opts.scroll) $('#panel').scrollIntoView({ block: 'nearest' });
 }
