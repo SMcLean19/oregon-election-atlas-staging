@@ -91,6 +91,8 @@ function nightTip(ev, d) {
       r.status === 'called' ? `${r.winner} (${r.winner_party}) wins` : r.status === 'counting' ? `${r.leader} (${r.leader_party}) leads by ${r.margin_pct ?? 0}` : 'Waiting for results'));
     if (r.status === 'counting') ntip.append(nel('div', 'muted', `About ${r.pct_in_est}% counted`));
     if (r.flip) ntip.append(nel('div', '', `Flip: ${r.flip}`));
+    const ml = O.moneyLine && O.moneyLine(r.chamber, r.district);
+    if (ml) ntip.append(nel('div', 'muted', `Raised: ${ml}`));
   }
   ntip.hidden = false;
   let x = ev.clientX - box.left + 14, y = ev.clientY - box.top + 14;
@@ -205,6 +207,8 @@ function seatTip(ev, d, ch) {
     for (const x of res) if (x.pct != null) tip.append(nel('div', '', `${x.candidate} (${x.party}) ${x.pct.toFixed(1)}%`));
     if (r.status === 'counting') tip.append(nel('div', 'muted', `About ${r.pct_in_est}% counted`));
     if (r.field === 1) tip.append(nel('div', 'muted', 'Unopposed'));
+    const ml = O.moneyLine && O.moneyLine(r.chamber, r.district);
+    if (ml) tip.append(nel('div', 'muted', `Raised: ${ml}`));
   }
   tip.hidden = false;
   let x = ev.clientX - box.left + 12, y = ev.clientY - box.top + 12;
@@ -324,6 +328,10 @@ function drawNightDetail() {
   kv('Called at', 'called_at', r.called_at ? (r.call_reason === 'Unopposed' ? 'Poll close' : `${tfmt(r.called_at)}, ${tdate(r.called_at)}`) : '');
   P.append(dl);
   const sum = (O.rows('district_summary') || []).find((x) => x.key === r.race_id);
+  if (O.moneyBlock) {
+    const reg = sum ? sum.registered : (O.rows('state_registration') || [])[0]?.total;
+    P.append(O.moneyBlock(r.chamber, r.district, reg));
+  }
   if (sum) {
     P.append(nel('p', 'oea-sub', 'For comparison'));
     const d2 = nel('dl', 'oea-kv');
