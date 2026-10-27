@@ -221,9 +221,11 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-money .mt i.spent { opacity: .45; }
 .oea-money .mie { display: grid; gap: 2px; }
 .oea-money .mf a { color: inherit; }
-.oea-prec path { stroke: var(--color-panel, #fff); stroke-width: .6px; cursor: pointer; }
-.oea-prec path:hover { stroke: var(--color-fg); stroke-width: 1.2px; }
-.oea-prec path.on { stroke: var(--color-fg); stroke-width: 2px; }
+.oea-prec .fills path { stroke: var(--color-bg); stroke-width: .6px; cursor: pointer; }
+.oea-prec .fills path:hover { stroke: var(--color-fg); stroke-width: 1.2px; }
+.oea-prec .fills path.on { stroke: var(--color-fg); stroke-width: 2px; }
+.oea-prec .halo path { fill: var(--color-fg); stroke: var(--color-fg); stroke-width: 5.2px; stroke-linejoin: round; pointer-events: none; }
+.oea-map path.dist.sel.precon, .oea-map path.dist.precon:hover { stroke: none; }
 path.dist.dim { opacity: .35; }
 .oea-prec-panel { display: grid; gap: var(--cds-gap-sm); margin-top: var(--cds-gap-md); padding-top: var(--cds-gap-md); border-top: 1px solid var(--color-border-line); }
 .oea-prec-panel .mh { display: flex; justify-content: space-between; align-items: baseline; gap: var(--cds-gap-sm); }
