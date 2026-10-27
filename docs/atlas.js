@@ -256,7 +256,7 @@ function precinctBlock(county) {
   h.append(el('p', 'oea-sub', `Precincts, ${yr} ${race}`), el('span', 'oea-note', `${shapes.length} precincts`));
   box.append(h);
   const pnote = (rows('precinct_notes') || []).find((n) => n.county === county && n.year === yr && n.race === race);
-  if (pnote) { box.append(el('p', 'oea-note', pnote.note)); return box; }
+  if (pnote) { box.append(el('p', 'oea-note', pnote.note)); if (pnote.hide) return box; }
   const list = [...res.values()].filter((r) => r.total);
   const dW = list.filter((r) => r.D > r.R).length, rW = list.filter((r) => r.R > r.D).length;
   const sum = el('p', 'oea-note');

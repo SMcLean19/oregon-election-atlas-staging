@@ -4,6 +4,31 @@
 "county": "Clackamas",
 "year": 2022,
 "race": "Governor",
+"hide": true,
 "note": "Clackamas County reported its 2022 results for precincts that do not match the current precinct map (86 reporting precincts vs 120 on the map), so they are not drawn here."
+},
+{
+"id": "Clatsop|2022|Governor",
+"county": "Clatsop",
+"year": 2022,
+"race": "Governor",
+"hide": false,
+"note": "The precinct file used here is 40 votes short of the certified Clatsop total for Kotek (8,011 vs 8,051); the missing votes could not be traced to a precinct."
+},
+{
+"id": "Hood River|2024|President",
+"county": "Hood River",
+"year": 2024,
+"race": "President",
+"hide": false,
+"note": "The county precinct map leaves the unpopulated south of the county (Mt Hood National Forest) unassigned."
+},
+{
+"id": "Hood River|2022|Governor",
+"county": "Hood River",
+"year": 2022,
+"race": "Governor",
+"hide": false,
+"note": "The county precinct map leaves the unpopulated south of the county (Mt Hood National Forest) unassigned."
 }
 ]
