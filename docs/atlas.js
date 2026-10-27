@@ -290,7 +290,7 @@ function moneyBlock(ch, dist, registered) {
       return r;
     };
     row.append(bar('Raised', x.raised, 'raised', 'raised'), bar('Spent', x.spent, 'spent', 'spent'));
-    if (x.cash_on_hand != null) row.append(mark(el('div', 'oea-note', `Cash on hand ${money$(x.cash_on_hand)}`), 'finance', 'cash_on_hand', { chamber: ch, district: dist, candidate: x.candidate }));
+    if (x.cash_on_hand != null) row.append(mark(el('div', 'oea-note', `Cash on hand${x.coh_net ? ', net of debts' : ''} ${money$(x.cash_on_hand)}`), 'finance', 'cash_on_hand', { chamber: ch, district: dist, candidate: x.candidate }));
     box.append(row);
   }
   // outside groups (independent expenditures), kept apart from the campaigns' own money
@@ -323,7 +323,7 @@ function moneyBlock(ch, dist, registered) {
   a.target = '_blank'; a.rel = 'noopener';
   foot.append(a);
   if (fed) foot.append(document.createTextNode('.'));
-  else foot.append(document.createTextNode('. State totals include in-kind gifts.'));
+  else foot.append(document.createTextNode(' account summaries. Totals include in-kind gifts.'));
   box.append(foot);
   return box;
 }
