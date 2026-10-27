@@ -59,11 +59,12 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 <div class="pub-banner" id="pub-banner" role="note"><div class="pub-banner-text"><b>Unofficial results.</b> Election night numbers come from the Oregon Secretary of State’s unofficial results at <a href="https://results.oregonvotes.gov" target="_blank" rel="noopener">results.oregonvotes.gov</a>. Race calls are this site’s own projections, not official results. <span id="pub-checked"></span></div><button type="button" class="pub-banner-x" id="pub-banner-x" aria-label="Close this notice">&times;</button></div>
 <script>
 (function () {
-  var KEY = 'oea-banner-closed-v1', banner = document.getElementById('pub-banner');
-  try { if (localStorage.getItem(KEY) === '1') banner.hidden = true; } catch (e) { /* storage blocked: keep showing */ }
+  var KEY = 'oea-banner-closed-v2', banner = document.getElementById('pub-banner');
+  // closed only for this visit: it shows again whenever the site is opened fresh
+  try { if (sessionStorage.getItem(KEY) === '1') banner.hidden = true; } catch (e) { /* storage blocked: keep showing */ }
   document.getElementById('pub-banner-x').addEventListener('click', function () {
     banner.hidden = true;
-    try { localStorage.setItem(KEY, '1'); } catch (e) { /* ignore */ }
+    try { sessionStorage.setItem(KEY, '1'); } catch (e) { /* ignore */ }
   });
 })();
 </script>
@@ -97,6 +98,10 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-map path.dist { stroke: var(--color-bg); stroke-width: 0.8; cursor: pointer; }
 .oea-map path.dist:hover { stroke: var(--color-fg); stroke-width: 1.5; }
 .oea-map path.dist.sel { stroke: var(--color-fg); stroke-width: 2.6; }
+.oea-map path.dist:focus, .oea-seatbox circle.seat:focus { outline: none; }
+.oea-map path.dist:focus-visible { stroke: var(--color-fg); stroke-width: 2.6; stroke-dasharray: 4 2; }
+.oea-seatbox circle.seat:focus-visible { stroke: var(--color-fg); stroke-width: 2.5; }
+.oea-map { -webkit-tap-highlight-color: transparent; }
 .oea-map text { fill: var(--color-fg); paint-order: stroke; stroke: var(--color-panel); stroke-width: 3px; font-family: var(--font-anthropic-sans); pointer-events: none; font-variant-numeric: tabular-nums; }
 .oea-zoom { position: absolute; right: var(--cds-pad-sm); top: var(--cds-pad-sm); display: grid; gap: var(--cds-gap-xs); }
 .oea-zoom .oea-btn { width: 2rem; padding: var(--cds-pad-xs) 0; text-align: center; }

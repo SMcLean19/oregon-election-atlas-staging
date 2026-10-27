@@ -102,6 +102,7 @@ const gShapes = gRoot.append('g');
 const gLabels = gRoot.append('g');
 let K = 1;
 const zoom = d3.zoom()
+  .clickDistance(8) // a click with a little hand movement is still a click, not a drag
   .scaleExtent([1, 60])
   .translateExtent([[-50, -50], [VW + 50, VH + 50]])
   .filter((e) => (e.type === 'wheel' ? e.ctrlKey || e.metaKey : !e.button))

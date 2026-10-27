@@ -14,7 +14,7 @@ const nsvg = d3.select('#night-svg').attr('viewBox', `0 0 ${O.VW} ${O.VH}`);
 const ng = nsvg.append('g');
 const ngShapes = ng.append('g'), ngLabels = ng.append('g');
 let NK = 1;
-const nzoom = d3.zoom().scaleExtent([1, 60]).translateExtent([[-50, -50], [O.VW + 50, O.VH + 50]])
+const nzoom = d3.zoom().clickDistance(8).scaleExtent([1, 60]).translateExtent([[-50, -50], [O.VW + 50, O.VH + 50]])
   .filter((e) => (e.type === 'wheel' ? e.ctrlKey || e.metaKey : !e.button))
   .on('zoom', (e) => { ng.attr('transform', e.transform); NK = e.transform.k; sizeNLabels(); });
 nsvg.call(nzoom).on('dblclick.zoom', null);
