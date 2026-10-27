@@ -257,7 +257,8 @@ function moneyLine(ch, dist) {
     if (xs.every((x) => x.status === 'pending')) return `${p} pending`;
     return `${p} ${money$(xs.reduce((t, x) => t + (x.raised || 0), 0))}`;
   };
-  const parts = [part('D'), part('R')].filter(Boolean);
+  const others = [...new Set(m.filter((x) => x.party !== 'D' && x.party !== 'R' && x.status === 'ok').map((x) => x.party))];
+  const parts = [part('D'), part('R'), ...others.map(part)].filter(Boolean);
   return parts.length ? parts.join(' · ') : null;
 }
 function moneyBlock(ch, dist, registered) {

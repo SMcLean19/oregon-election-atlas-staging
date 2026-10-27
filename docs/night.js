@@ -231,7 +231,7 @@ function raceCard(r, big) {
   nmark(chip, 'live_races', 'status', { race_id: r.race_id });
   top.append(chip);
   c.append(top);
-  const res = (O.rows('live_results') || []).filter((x) => x.race_id === r.race_id).sort((a, b) => b.votes - a.votes || (a.party === 'D' ? -1 : 1)).slice(0, big ? 3 : 2);
+  const res = (O.rows('live_results') || []).filter((x) => x.race_id === r.race_id).sort((a, b) => b.votes - a.votes || (({ D: 0, R: 1 }[a.party] ?? 2) - ({ D: 0, R: 1 }[b.party] ?? 2)));  // every candidate on the ballot, third parties included
   for (const x of res) {
     const line = nel('div', 'cand');
     const nm = nel('span', 'cn', `${x.candidate.split(' ').slice(-1)[0]} (${x.party})${x.winner ? ' ✓' : ''}`);
@@ -408,10 +408,9 @@ function drawTicker() {
       const c = best(p);
       if (c) parts.push({ p, id: c.id, pct: c.pct, win: c.winner === 'Yes' });
     }
-    if (parts.length < 2) { // no D or no R on the ballot: show the strongest other candidate instead
-      const o = cands.filter((c) => c.party !== 'D' && c.party !== 'R').sort((a, b) => b.votes - a.votes)[0];
-      if (o) parts.push({ p: o.party, id: o.id, pct: o.pct, win: o.winner === 'Yes' });
-    }
+    // every other candidate on the ballot too (third parties, independents), largest first
+    cands.filter((c) => c.party !== 'D' && c.party !== 'R').sort((a, b) => b.votes - a.votes)
+      .forEach((o) => parts.push({ p: o.party, id: o.id, pct: o.pct, win: o.winner === 'Yes' }));
     return { label: tickLabel(r), status: r.status, unopposed: r.field === 1, parts, race_id: r.race_id };
   });
   const sig = JSON.stringify(items);
