@@ -68,6 +68,7 @@
 "through": "2026-10-28",
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"only_2026": true,
 "coh_net": true,
 "pulled_at": "2026-10-28T10:05:00-07:00"
 },
