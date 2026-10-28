@@ -6,9 +6,17 @@ const CH = {
   county: { label: 'Statewide', short: '', title: 'County', rep: '' },
 };
 const THEN = '2022-09';
+// Oregon's five statewide executive offices (Oregon Blue Book; holders checked Oct 28, 2026)
+const STATE_EXEC = [
+  { office: 'Governor', short: 'Governor',  holder: 'Tina Kotek', party: 'D', since: '2023', up2026: 'Yes' },
+  { office: 'Secretary of State', short: 'Sec. of State',  holder: 'Tobias Read', party: 'D', since: '2025', up2026: 'No' },
+  { office: 'Attorney General', short: 'Attorney Gen.',  holder: 'Dan Rayfield', party: 'D', since: '2025', up2026: 'No' },
+  { office: 'State Treasurer', short: 'Treasurer',  holder: 'Elizabeth Steiner', party: 'D', since: '2025', up2026: 'No' },
+  { office: 'Labor Commissioner (BOLI)', short: 'Labor Comm.',  holder: 'Christina Stephenson', party: 'D', since: '2023', up2026: 'No', note: 'Formally nonpartisan office; re-elected outright in the May 2026 primary' },
+];
 const monthName = (m) => (m ? new Date(`${m}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }) : '');
 const regMonth = () => { const r = rows('state_registration'); return r && r[0] ? monthName(r[0].month) : ''; };
-const S = { chamber: 'house', color: 'baseline', sel: null, tab: 'map', sort: { key: 'abs_baseline', dir: 1 }, q: '', when: 'now', topf: 'all' };
+const S = { chamber: 'house', color: 'holder', sel: null, tab: 'map', sort: { key: 'abs_baseline', dir: 1 }, q: '', when: 'now', topf: 'all' };
 const $ = (s, el = document) => el.querySelector(s);
 const enc = (v) => String(v).replace(/%/g, '%25').replace(/&/g, '%26').replace(/=/g, '%3D');
 const where = (o) => Object.entries(o).map(([k, v]) => `${enc(k)}=${enc(v)}`).join('&');
@@ -100,6 +108,7 @@ const svg = d3.select('#mapsvg').attr('viewBox', `0 0 ${VW} ${VH}`);
 const gRoot = svg.append('g');
 const gShapes = gRoot.append('g');
 const gPrec = gRoot.append('g').attr('class', 'oea-prec');
+const gHover = gRoot.append('g').attr('class', 'oea-hover');
 const gLabels = gRoot.append('g');
 let K = 1;
 const zoom = d3.zoom()
@@ -123,6 +132,7 @@ document.querySelectorAll('[data-zoom]').forEach((b) => b.addEventListener('clic
   const [[a, b2], [c, d]] = PRESET[b.dataset.zoom];
   zoomBox([proj(a, b2), proj(c, d)], b.dataset.zoom === 'state' ? 1 : 0.9);
 }));
+$('#mapclose')?.addEventListener('click', (e) => { e.stopPropagation(); deselect(); });
 $('#zin')?.addEventListener('click', () => svg.transition().duration(250).call(zoom.scaleBy, 1.6));
 $('#zout')?.addEventListener('click', () => svg.transition().duration(250).call(zoom.scaleBy, 1 / 1.6));
 
@@ -155,7 +165,14 @@ function showTip(ev, o) {
   tip.style.top = y + 'px';
 }
 
+// hover outline: drawn on its own layer above every shape, so it looks the same on every district or county
+function hoverOn(d) { gHover.selectAll('path').data([d]).join('path').attr('d', (x) => x).attr('vector-effect', 'non-scaling-stroke'); }
+function hoverOff() { gHover.selectAll('path').remove(); }
+// click empty map space (or the selected shape again, or press Escape) to close the selection
+svg.on('click.desel', (ev) => { if (!ev.target.closest('path.dist, .oea-prec path')) deselect(); });
+svg.on('keydown.desel', (ev) => { if (ev.key === 'Escape') deselect(); });
 function drawMap() {
+  hoverOff();
   const geo = rows('geo'), sum = rows('district_summary');
   const card = $('#mapbox');
   const failed = ['geo', 'district_summary'].some((id) => dash.data(id).status === 'error');
@@ -176,9 +193,10 @@ function drawMap() {
     .attr('vector-effect', 'non-scaling-stroke')
     .attr('tabindex', 0)
     .attr('aria-label', (d) => dname(d.o.chamber, d.o.district))
+    .on('mouseenter', (ev, d) => hoverOn(d.d))
     .on('mousemove', (ev, d) => showTip(ev, d.o))
-    .on('mouseleave', () => { tip.hidden = true; })
-    .on('click', (ev, d) => select(d.key))
+    .on('mouseleave', () => { tip.hidden = true; hoverOff(); })
+    .on('click', (ev, d) => (d.key === S.sel ? deselect() : select(d.key)))
     .on('keydown', (ev, d) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(d.key); } });
   gShapes.selectAll('path.sel').raise();
   gLabels.selectAll('text').data(S.chamber === 'county' ? feats : feats, (d) => d.key).join('text')
@@ -224,8 +242,9 @@ function drawPrecincts() {
     .attr('class', (d) => (d.precinct === S.prec ? 'on' : null))
     .attr('fill-rule', 'evenodd')
     .attr('vector-effect', 'non-scaling-stroke')
+    .on('mouseenter', (ev, d) => hoverOn(d.d))
     .on('mousemove', (ev, d) => precTip(ev, d))
-    .on('mouseleave', () => { tip.hidden = true; })
+    .on('mouseleave', () => { tip.hidden = true; hoverOff(); })
     .on('click', (ev, d) => { ev.stopPropagation(); S.prec = d.precinct; fills.selectAll('path').classed('on', (x) => x.precinct === S.prec); fills.selectAll('path.on').raise(); drawPanel(); });
   fills.selectAll('path.on').raise();
 }
@@ -318,8 +337,17 @@ function select(key, opts = {}) {
   drawPrecincts();
   drawPanel();
   const hasPrec = !!selCounty();  // counties zoom in; their precincts draw as soon as the precinct file has loaded
-  if ((opts.zoom || hasPrec) && GEO[key]) zoomBox(GEO[key].box, hasPrec ? 0.8 : 0.6);
+  if ((opts.zoom || hasPrec) && GEO[key]) { zoomBox(GEO[key].box, hasPrec ? 0.8 : 0.6); S.autoZoom = true; }
   if (opts.scroll) $('#panel').scrollIntoView({ block: 'nearest' });
+}
+
+function deselect() {
+  if (!S.sel) return;
+  S.sel = null; S.prec = null; tip.hidden = true;
+  gShapes.selectAll('path.dist').classed('sel', false);
+  drawPrecincts();
+  drawPanel();
+  if (S.autoZoom) { S.autoZoom = false; const [[a, b], [c, d]] = PRESET.state; zoomBox([proj(a, b), proj(c, d)], 1); }
 }
 
 // November ballot: one column per candidate (up to three), from the general-election candidate list
@@ -548,9 +576,14 @@ function drawPanel() {
     return;
   }
   const o = S.sel && sum.find((r) => r.key === S.sel && r.chamber === S.chamber);
+  const mc = $('#mapclose');
+  if (mc) { mc.hidden = !o; if (o) $('#mapclose-name').textContent = o.chamber === 'county' ? `${o.district} County` : dshort(o.chamber, o.district); }
   if (!o) return drawDefaultPanel(P);
   const head = el('div', 'oea-panel-head');
   head.append(el('h3', 'oea-panel-name', dname(o.chamber, o.district)));
+  const xb = el('button', 'oea-btn oea-panel-close', '✕ Close'); xb.type = 'button'; xb.setAttribute('aria-label', 'Close and go back to the full map');
+  xb.addEventListener('click', () => deselect());
+  head.append(xb);
   const chips = el('div', 'oea-chips');
   if (o.rating) {
     const c = mark(el('span', 'oea-chip ' + (o.rating === 'Toss-up' ? 't' : o.rating.endsWith('D') ? 'd' : 'r'), o.rating), 'district_summary', 'rating', { key: o.key });
@@ -596,8 +629,8 @@ function drawDefaultPanel(P) {
   const ov = rows('chamber_overview');
   if (S.chamber === 'county') {
     P.append(el('h3', 'oea-panel-name', 'Oregon'));
-    P.append(el('p', 'oea-sub', 'Statewide races on the 2026 ballot'));
-    for (const [ch, lbl] of [['governor', 'Governor'], ['ussenate', 'U.S. Senate']]) {
+    P.append(el('p', 'oea-sub', 'Statewide race on the 2026 ballot'));
+    for (const [ch, lbl] of [['governor', 'Governor']]) {
       P.append(el('p', 'oea-note', lbl));
       P.append(vsBlock(ch, 'OR'));
       P.append(moneyBlock(ch, 'OR', (rows('state_registration') || [])[0]?.total));
@@ -620,6 +653,11 @@ function drawDefaultPanel(P) {
     kv('Trending competitive', 'watch', r.watch);
     }
     P.append(dl);
+  }
+  if (S.chamber === 'congress') {
+    P.append(el('p', 'oea-sub', 'U.S. Senate race on the 2026 ballot'));
+    P.append(vsBlock('ussenate', 'OR'));
+    P.append(moneyBlock('ussenate', 'OR', (rows('state_registration') || [])[0]?.total));
   }
   P.append(el('p', 'oea-note', window.OEA_PUBLIC ? 'Click a district on the map to open its file.' : 'Click a district on the map, or a row in Races to watch, to open its file.'));
 }
@@ -746,8 +784,24 @@ function drawHeader() {
   const p = $('#takeaway');
   const ov = rows('chamber_overview');
   p.replaceChildren();
+  if (S.chamber === 'county') {
+    const nD = STATE_EXEC.filter((o) => o.party === 'D').length;
+    p.append('Statewide offices: Democrats hold ', el('b', '', String(nD)), ' of ', el('b', '', String(STATE_EXEC.length)),
+      ' (Governor, Secretary of State, Attorney General, Treasurer and Labor Commissioner; the Labor Commissioner is formally nonpartisan). Only the Governor is on the November 3 ballot.');
+    return;
+  }
   if (!ov) { p.append(el('span', 'dash-skeleton', '—')); return; }
-  const r = ov.find((x) => x.chamber === (S.chamber === 'county' ? 'house' : S.chamber));
+  const r = ov.find((x) => x.chamber === S.chamber);
+  if (S.chamber === 'congress') {
+    const sen = (rows('officeholders') || []).filter((x) => x.chamber === 'ussenate');
+    const sD = sen.filter((x) => x.party === 'D').length;
+    const bb = (f, v) => mark(el('b', '', String(v)), 'chamber_overview', f, { chamber: 'congress' });
+    p.append('Oregon’s congressional delegation: Democrats hold ', el('b', '', String(r.held_D + sD)), ' of ', el('b', '', String(r.seats + sen.length)),
+      ' seats (', bb('held_D', r.held_D), ' of ', bb('seats', r.seats), ' U.S. House seats and ', el('b', '', String(sD)), ' of ', el('b', '', String(sen.length)), ' U.S. Senate seats). ');
+    if (window.OEA_PUBLIC) p.append('All ', bb('up_2026', r.up_2026), ' House seats and one Senate seat are on the November 3 ballot.');
+    else p.append(bb('competitive_up', r.competitive_up), ' of the ', bb('up_2026', r.up_2026), ' House seats on the November ballot rate Toss-up or Lean on the statewide-race baseline, and ', bb('watch', r.watch), ' are trending competitive on registration. One Senate seat is also on the ballot.');
+    return;
+  }
   const b = (f, v) => mark(el('b', '', String(v)), 'chamber_overview', f, { chamber: r.chamber });
   const name = CH[r.chamber].label;
   if (window.OEA_PUBLIC) { p.append(`${name}: Democrats hold `, b('held_D', r.held_D), ' and Republicans ', b('held_R', r.held_R), ' of ', b('seats', r.seats), ' seats; ', b('up_2026', r.up_2026), ' are on the November 3 ballot.'); return; }
@@ -770,7 +824,8 @@ $('#chamber-seg')?.addEventListener('click', (e) => {
   const b = e.target.closest('button[data-ch]');
   if (!b || b.dataset.ch === S.chamber) return;
   S.chamber = b.dataset.ch;
-  S.sel = null;
+  S.sel = null; S.prec = null;
+  if (S.autoZoom) { S.autoZoom = false; const [[a1, b1], [c1, d1]] = PRESET.state; zoomBox([proj(a1, b1), proj(c1, d1)], 1); }
   document.querySelectorAll('#chamber-seg button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
   drawAll();
 });
@@ -820,10 +875,13 @@ function seatList() {
   const sum = rows('district_summary');
   if (!sum) return null;
   if (S.chamber === 'county') {
+    return STATE_EXEC.map((x) => ({ key: '', chamber: 'exec', district: 'OR', office: x.office, short: x.short, holder: x.holder, holder_party: x.party, last_winner: x.party, baseline: 0, up2026: x.up2026, rating: '', note: x.note }));
+  }
+  if (S.chamber === 'congress') {
     const off = rows('officeholders') || [];
     const cd = sum.filter((o) => o.chamber === 'congress');
     const sen = off.filter((p) => p.chamber === 'ussenate').map((p) => ({ key: '', chamber: 'ussenate', district: 'OR', holder: p.name, holder_party: p.party, last_winner: p.party, baseline: p.party === 'D' ? 99 : -99, up2026: p.up2026 ? 'Yes' : 'No', rating: '' }));
-    return [...cd, ...sen];
+    return [...sen, ...cd.sort((x, y) => Number(x.district) - Number(y.district))];
   }
   return sum.filter((o) => o.chamber === S.chamber);
 }
@@ -832,15 +890,31 @@ function drawSeats() {
   const box = $('#seatbox'), key = $('#seatkey'), tipS = $('#seattip');
   [...box.querySelectorAll('svg, .oea-fail')].forEach((n) => n.remove());
   key.replaceChildren();
-  $('#seats-title').textContent = S.chamber === 'county' ? 'Oregon’s delegation in Congress' : `Makeup of the ${CH[S.chamber].label}`;
+  box.classList.toggle('small', S.chamber === 'county' || S.chamber === 'congress');
+  $('#seats-title').textContent = S.chamber === 'county' ? 'Oregon’s statewide offices' : S.chamber === 'congress' ? 'Makeup of Oregon’s Congressional Delegation' : `Makeup of the ${CH[S.chamber].label}`;
   $('#seats-when').hidden = false;
   const list = seatList();
   if (!list) { if (dash.data('district_summary').status === 'error') box.append(el('div', 'oea-fail', 'Failed to load')); return; }
   const partyOf = (o) => (S.when === 'now' ? o.holder_party : o.last_winner) || '';
   const order = (p) => (p === 'D' ? 0 : p === 'R' ? 2 : 1);
-  const seats = [...list].sort((a, b) => order(partyOf(a)) - order(partyOf(b)) || (b.baseline ?? 0) - (a.baseline ?? 0));
-  const W = Math.max(280, Math.min(720, box.clientWidth || 520)), H = Math.round(W * 0.52);
-  const { pts, rad, R0, base } = hemicycle(seats.length, W, H);
+  const seats = list.length <= 10
+    ? [...list]  // small groups keep their natural order: Senate then CD 1-6, or the five offices in Blue Book order
+    : [...list].sort((a, b) => order(partyOf(a)) - order(partyOf(b)) || (b.baseline ?? 0) - (a.baseline ?? 0));
+  const W = Math.max(280, Math.min(720, box.clientWidth || 520));
+  // a handful of seats (statewide offices, the congressional delegation) read better as a labeled row than a hemicycle
+  const small = seats.length <= 10;
+  let H, pts, rad, R0, base;
+  if (small) {
+    const per = W / seats.length >= 78 ? seats.length : Math.ceil(seats.length / 2);  // two rows on narrow screens
+    rad = Math.min(24, W / (per * 3.2));
+    const rowH = rad * 2 + 50;
+    H = Math.round(rowH * Math.ceil(seats.length / per));
+    pts = seats.map((s, i) => ({ x: W / per * ((i % per) + 0.5), y: rad + 6 + rowH * Math.floor(i / per) }));
+    R0 = 0; base = H;
+  } else {
+    H = Math.round(W * 0.52);
+    ({ pts, rad, R0, base } = hemicycle(seats.length, W, H));
+  }
   const svgS = d3.create('svg').attr('viewBox', `0 0 ${W} ${H}`).attr('width', '100%').attr('role', 'img').attr('aria-label', 'Seats by party');
   const fill = (p) => (p === 'D' ? CD() : p === 'R' ? CR() : NEUTRAL);
   const comp = (o) => o.rating === 'Toss-up' || (o.rating || '').startsWith('Lean');
@@ -854,11 +928,12 @@ function drawSeats() {
     .attr('tabindex', (d) => (d.key ? 0 : null))
     .on('mousemove', (ev, d) => {
       const b = box.getBoundingClientRect();
-      tipS.replaceChildren(el('div', 't', d.chamber === 'ussenate' ? 'U.S. Senate' : dname(d.chamber, d.district)));
+      tipS.replaceChildren(el('div', 't', d.chamber === 'ussenate' ? 'U.S. Senate' : d.chamber === 'exec' ? d.office : dname(d.chamber, d.district)));
       const who = el('div'); who.append(el('b', pcls(d.holder_party), d.holder ? `${d.holder} (${d.holder_party})` : 'Vacant')); tipS.append(who);
       if (S.when === '2024' && d.last_winner && d.last_winner !== d.holder_party) tipS.append(el('div', 'muted', `Won by ${d.last_winner} in ${d.last_year}`));
       if (d.rating) tipS.append(el('div', 'muted', `${d.rating} · baseline ${d.baseline_label}`));
-      if (d.up2026 === 'No') tipS.append(el('div', 'muted', 'Not on the 2026 ballot'));
+      if (d.note) tipS.append(el('div', 'muted', d.note));
+      else if (d.up2026 === 'No') tipS.append(el('div', 'muted', 'Not on the 2026 ballot'));
       tipS.hidden = false;
       let x = ev.clientX - b.left + 12, y = ev.clientY - b.top + 12;
       if (x + tipS.offsetWidth > b.width) x = Math.max(0, ev.clientX - b.left - tipS.offsetWidth - 12);
@@ -867,7 +942,14 @@ function drawSeats() {
     .on('mouseleave', () => { tipS.hidden = true; })
     .on('click', (ev, d) => { if (d.key) select(d.key, { zoom: true }); })
     .on('keydown', (ev, d) => { if (d.key && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); select(d.key, { zoom: true }); } });
-  if (S.chamber !== 'county') {
+  if (small) {
+    const lab = (d) => (d.chamber === 'exec' ? d.short : d.chamber === 'ussenate' ? 'Senate' : dshort(d.chamber, d.district));
+    const last = (d) => (d.holder ? d.holder.split(' ').slice(-1)[0] : 'Vacant');
+    const t = svgS.append('g').selectAll('text').data(seats).join('text').attr('text-anchor', 'middle').attr('x', (d, i) => pts[i].x);
+    t.append('tspan').attr('class', 'nm').attr('x', (d, i) => pts[i].x).attr('y', (d, i) => pts[i].y + rad + 18).text(last);
+    t.append('tspan').attr('x', (d, i) => pts[i].x).attr('y', (d, i) => pts[i].y + rad + 34).text(lab);
+  }
+  if (S.chamber === 'house' || S.chamber === 'senate') {
     const maj = Math.floor(seats.length / 2) + 1;
     svgS.append('line').attr('x1', W / 2).attr('x2', W / 2).attr('y1', 2).attr('y2', Math.max(4, base - R0 - rad - 4))
       .attr('stroke', 'var(--cds-chart-reference)').attr('stroke-dasharray', '3 3');
@@ -876,7 +958,7 @@ function drawSeats() {
   box.insertBefore(svgS.node(), tipS);
   const nD = seats.filter((o) => partyOf(o) === 'D').length, nR = seats.filter((o) => partyOf(o) === 'R').length;
   const big = el('div', 'big');
-  const cnt = (p, n, lbl) => { const s = el('div'); const v = el('span', pcls(p), String(n)); if (S.chamber !== 'county') mark(v, 'chamber_overview', S.when === 'now' ? (p === 'D' ? 'held_D' : 'held_R') : (p === 'D' ? 'won_D' : 'won_R'), { chamber: S.chamber }); s.append(v, ' ', lbl); big.append(s); };
+  const cnt = (p, n, lbl) => { const s = el('div'); const v = el('span', pcls(p), String(n)); if (S.chamber === 'house' || S.chamber === 'senate') mark(v, 'chamber_overview', S.when === 'now' ? (p === 'D' ? 'held_D' : 'held_R') : (p === 'D' ? 'won_D' : 'won_R'), { chamber: S.chamber }); s.append(v, ' ', lbl); big.append(s); };
   cnt('D', nD, 'Democrats');
   cnt('R', nR, 'Republicans');
   key.append(big);
@@ -889,9 +971,9 @@ function drawSeats() {
     if (seats.some((o) => o.up2026 === 'No')) sw({ background: NEUTRAL }, 'Faded: not on 2026 ballot');
     key.append(lg);
   } else {
-    key.append(el('div', '', 'Party that won each seat at its most recent election (2024 for the House and Congress; 2022 or 2024 for the Senate).'));
+    key.append(el('div', '', S.chamber === 'county' ? 'Party that won each office at its most recent election (2022 Governor and Labor Commissioner; 2024 for the others).' : 'Party that won each seat at its most recent election (2024 for the House and Congress; 2022 or 2024 for the Senate).'));
   }
-  key.append(el('div', '', 'Hover a seat for its member; click to open it on the map.'));
+  key.append(el('div', '', S.chamber === 'county' ? 'Hover a seat for the officeholder.' : 'Hover a seat for its member; click a House seat to open it on the map.'));
 }
 $('#seats-when')?.addEventListener('click', (e) => {
   const b = e.target.closest('button[data-when]');

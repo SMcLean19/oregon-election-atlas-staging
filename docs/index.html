@@ -96,7 +96,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-mapbox { position: relative; min-height: 18rem; }
 .oea-map { display: block; width: 100%; height: auto; touch-action: pan-y; cursor: grab; }
 .oea-map path.dist { stroke: var(--color-bg); stroke-width: 0.8; cursor: pointer; }
-.oea-map path.dist:hover { stroke: var(--color-fg); stroke-width: 1.5; }
+.oea-map .oea-hover path { fill: none; stroke: var(--color-fg); stroke-width: 1.8px; stroke-linejoin: round; pointer-events: none; }
 .oea-map path.dist.sel { stroke: var(--color-fg); stroke-width: 2.6; }
 .oea-map path.dist:focus, .oea-seatbox circle.seat:focus { outline: none; }
 .oea-map path.dist:focus-visible { stroke: var(--color-fg); stroke-width: 2.6; stroke-dasharray: 4 2; }
@@ -105,6 +105,8 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-map text { fill: var(--color-fg); paint-order: stroke; stroke: var(--color-panel); stroke-width: 3px; font-family: var(--font-anthropic-sans); pointer-events: none; font-variant-numeric: tabular-nums; }
 .oea-zoom { position: absolute; right: var(--cds-pad-sm); top: var(--cds-pad-sm); display: grid; gap: var(--cds-gap-xs); }
 .oea-zoom .oea-btn { width: 2rem; padding: var(--cds-pad-xs) 0; text-align: center; }
+.oea-mapclose { position: absolute; left: var(--cds-pad-sm); top: var(--cds-pad-sm); box-shadow: var(--cds-shadow-popover); }
+.oea-panel-close { margin-left: auto; }
 .oea-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm) var(--cds-gap-md); align-items: center; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
 .oea-legend i { display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 2px; vertical-align: -2px; margin-right: 4px; }
 .oea-ramp { display: inline-block; width: 9rem; height: 0.6rem; border-radius: 2px; vertical-align: middle; }
@@ -163,10 +165,12 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-seats { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(min(100%, 15rem), 1fr); gap: var(--cds-gap-lg); align-items: center; }
 @media (max-width: 700px) { .oea-seats { grid-template-columns: minmax(0, 1fr); } }
 .oea-seatbox { position: relative; min-height: 9rem; }
+.oea-seatbox.small { min-height: 0; }
 .oea-seatbox svg { display: block; width: 100%; height: auto; }
 .oea-seatbox circle.seat { cursor: pointer; }
 .oea-seatbox circle.seat:hover { stroke: var(--color-fg); stroke-width: 1.5; }
 .oea-seatbox text { fill: var(--color-fg-muted); font-size: 11px; font-family: var(--font-anthropic-sans); }
+.oea-seatbox text .nm { fill: var(--color-fg); font-size: 12px; font-weight: 600; }
 .oea-seatkey { display: grid; gap: var(--cds-gap-sm); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
 .oea-seatkey .big { display: flex; gap: var(--cds-gap-lg); align-items: baseline; flex-wrap: wrap; }
 .oea-seatkey .big span { font-family: var(--font-anthropic-serif); font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; }
@@ -222,10 +226,9 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-money .mie { display: grid; gap: 2px; }
 .oea-money .mf a { color: inherit; }
 .oea-prec .fills path { stroke: var(--color-bg); stroke-width: .6px; cursor: pointer; }
-.oea-prec .fills path:hover { stroke: var(--color-fg); stroke-width: 1.2px; }
 .oea-prec .fills path.on { stroke: var(--color-fg); stroke-width: 2px; }
 .oea-prec .halo path { fill: var(--color-fg); stroke: var(--color-fg); stroke-width: 5.2px; stroke-linejoin: round; pointer-events: none; }
-.oea-map path.dist.sel.precon, .oea-map path.dist.precon:hover { stroke: none; }
+.oea-map path.dist.sel.precon { stroke: none; }
 path.dist.dim { opacity: .35; }
 .oea-prec-panel { display: grid; gap: var(--cds-gap-sm); margin-top: var(--cds-gap-md); padding-top: var(--cds-gap-md); border-top: 1px solid var(--color-border-line); }
 .oea-prec-panel .mh { display: flex; justify-content: space-between; align-items: baseline; gap: var(--cds-gap-sm); }
@@ -302,8 +305,8 @@ path.dist.dim { opacity: .35; }
     </div>
     <label class="oea-label" id="colorby-wrap">Color by
       <select class="oea-select" id="colorby" aria-label="Color the map by">
-        <option value="baseline">Partisan baseline (6 statewide races)</option>
         <option value="holder">Who holds the seat</option>
+        <option value="baseline">Partisan baseline (6 statewide races)</option>
         <option value="pres_2024">2024 President margin</option>
         <option value="gov_2022">2022 Governor margin</option>
         <option value="reg_gap">Registration, D minus R</option>
@@ -334,6 +337,7 @@ path.dist.dim { opacity: .35; }
             <button type="button" class="oea-btn" id="zin" aria-label="Zoom in">+</button>
             <button type="button" class="oea-btn" id="zout" aria-label="Zoom out">−</button>
           </div>
+          <button type="button" class="oea-btn oea-mapclose" id="mapclose" hidden>✕ Close <span id="mapclose-name"></span></button>
           <div class="oea-tip" id="tip" hidden></div>
         </div>
         <div class="oea-controls">

@@ -12,7 +12,13 @@ const isUp = () => !document.getElementById('night').hidden;
 // ---------- map ----------
 const nsvg = d3.select('#night-svg').attr('viewBox', `0 0 ${O.VW} ${O.VH}`);
 const ng = nsvg.append('g');
-const ngShapes = ng.append('g'), ngLabels = ng.append('g');
+const ngShapes = ng.append('g'), ngHover = ng.append('g').attr('class', 'oea-hover'), ngLabels = ng.append('g');
+// hover outline on its own layer, so it is the same width on every shape
+const nHoverOn = (d) => ngHover.selectAll('path').data([d]).join('path').attr('d', (x) => x).attr('vector-effect', 'non-scaling-stroke');
+const nHoverOff = () => ngHover.selectAll('path').remove();
+// click empty map space, or the highlighted district again, to go back to the statewide race
+const nDeselect = () => { if (N.sel && !N.sel.endsWith('-OR')) selectRace(`${N.race}-OR`); };
+nsvg.on('click.desel', (ev) => { if (!ev.target.closest('path.dist')) nDeselect(); });
 let NK = 1;
 const nzoom = d3.zoom().clickDistance(8).scaleExtent([1, 60]).translateExtent([[-50, -50], [O.VW + 50, O.VH + 50]])
   .filter((e) => (e.type === 'wheel' ? e.ctrlKey || e.metaKey : !e.button))
@@ -66,9 +72,10 @@ function drawNightMap() {
     .attr('d', (d) => d.d).attr('fill', fill).attr('fill-rule', 'evenodd')
     .attr('vector-effect', 'non-scaling-stroke').attr('tabindex', 0)
     .attr('aria-label', (d) => O.dname(N.chamber, d.district))
+    .on('mouseenter', (ev, d) => nHoverOn(d.d))
     .on('mousemove', (ev, d) => nightTip(ev, d))
-    .on('mouseleave', () => { ntip.hidden = true; })
-    .on('click', (ev, d) => { if (d.race) selectRace(d.key); else if (N.chamber === 'county') selectRace(`${N.race}-OR`); })
+    .on('mouseleave', () => { ntip.hidden = true; nHoverOff(); })
+    .on('click', (ev, d) => { if (d.key === N.sel) nDeselect(); else if (d.race) selectRace(d.key); else if (N.chamber === 'county') selectRace(`${N.race}-OR`); })
     .on('keydown', (ev, d) => { if ((ev.key === 'Enter' || ev.key === ' ') && d.race) { ev.preventDefault(); selectRace(d.key); } });
   ngShapes.selectAll('path.sel').raise();
   ngLabels.selectAll('text').data(feats, (d) => d.key).join('text')
