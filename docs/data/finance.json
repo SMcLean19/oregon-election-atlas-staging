@@ -15,7 +15,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "house",
@@ -24,14 +24,16 @@
 "party": "R",
 "source": "ORESTAR",
 "filer_id": "22133",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 110394,
+"spent": 74156,
+"cash_on_hand": 69125,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -40,14 +42,16 @@
 "party": "R",
 "source": "ORESTAR",
 "filer_id": "21437",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 160778,
+"spent": 147444,
+"cash_on_hand": 67186,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -56,14 +60,16 @@
 "party": "D",
 "source": "ORESTAR",
 "filer_id": "24431",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 42529,
+"spent": 40520,
+"cash_on_hand": -31015,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -72,14 +78,16 @@
 "party": "R",
 "source": "ORESTAR",
 "filer_id": "23071",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 103420,
+"spent": 93326,
+"cash_on_hand": 3488,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -88,14 +96,16 @@
 "party": "R",
 "source": "ORESTAR",
 "filer_id": "23249",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 125630,
+"spent": 131249,
+"cash_on_hand": 21754,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -104,14 +114,16 @@
 "party": "D",
 "source": "ORESTAR",
 "filer_id": "17668",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 67238,
+"spent": 76470,
+"cash_on_hand": 65608,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -136,14 +148,16 @@
 "party": "D",
 "source": "ORESTAR",
 "filer_id": "23001",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 0,
+"spent": 0,
+"cash_on_hand": 0,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -152,14 +166,16 @@
 "party": "R",
 "source": "ORESTAR",
 "filer_id": "18284",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 104188,
+"spent": 78880,
+"cash_on_hand": 75753,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -204,14 +220,16 @@
 "party": "D",
 "source": "ORESTAR",
 "filer_id": "19751",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 80504,
+"spent": 82467,
+"cash_on_hand": 34825,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -220,14 +238,16 @@
 "party": "R",
 "source": "ORESTAR",
 "filer_id": "25141",
-"raised": null,
-"spent": null,
-"cash_on_hand": null,
+"raised": 1557,
+"spent": 1124,
+"cash_on_hand": -824,
 "ie_for": null,
 "ie_against": null,
-"through": null,
-"status": "pending",
-"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do"
+"through": "2026-10-28",
+"status": "ok",
+"url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
+"coh_net": true,
+"pulled_at": "2026-10-28T10:05:00-07:00"
 },
 {
 "chamber": "house",
@@ -2163,7 +2183,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "senate",
@@ -2197,7 +2217,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "senate",
@@ -2215,7 +2235,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "senate",
@@ -2287,7 +2307,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "senate",
@@ -2321,7 +2341,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "senate",
@@ -2339,7 +2359,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "senate",
@@ -2393,7 +2413,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "senate",
@@ -2411,7 +2431,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "senate",
@@ -2429,7 +2449,7 @@
 "status": "ok",
 "url": "https://secure.sos.state.or.us/orestar/gotoPublicTransactionSearch.do",
 "coh_net": true,
-"pulled_at": "2026-10-27T14:55:00-07:00"
+"pulled_at": "2026-10-27T14:45:00-07:00"
 },
 {
 "chamber": "governor",
