@@ -30,12 +30,16 @@ function nZoomBox([[x0, y0], [x1, y1]], pad = 0.85) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   (reduce ? nsvg : nsvg.transition().duration(500)).call(nzoom.transform, t);
 }
+O.$('#nzin')?.addEventListener('click', () => nsvg.transition().duration(250).call(nzoom.scaleBy, 1.6));
+O.$('#nzout')?.addEventListener('click', () => nsvg.transition().duration(250).call(nzoom.scaleBy, 1 / 1.6));
 document.querySelectorAll('[data-nzoom]').forEach((b) => b.addEventListener('click', () => {
   const [[a, b2], [c, d]] = O.PRESET[b.dataset.nzoom];
   nZoomBox([O.proj(a, b2), O.proj(c, d)], b.dataset.nzoom === 'state' ? 1 : 0.9);
 }));
 function sizeNLabels() {
-  O.fitLabels(ngLabels.selectAll('text'), NK);
+  const hidden = O.fitLabels(ngLabels.selectAll('text'), NK);
+  const hint = O.$('#nzoomhint');
+  if (hint) hint.hidden = !hidden;
 }
 const ntip = O.$('#night-tip');
 

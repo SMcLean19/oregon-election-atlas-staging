@@ -105,6 +105,8 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-map text { fill: var(--color-fg); paint-order: stroke; stroke: var(--color-panel); stroke-width: 3px; font-family: var(--font-anthropic-sans); pointer-events: none; font-variant-numeric: tabular-nums; }
 .oea-zoom { position: absolute; right: var(--cds-pad-sm); top: var(--cds-pad-sm); display: grid; gap: var(--cds-gap-xs); }
 .oea-zoom .oea-btn { width: 2rem; padding: var(--cds-pad-xs) 0; text-align: center; }
+.oea-zoomhint { margin: var(--cds-gap-xs) 0 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.oea-zoomhint b { color: var(--color-fg); }
 .oea-mapclose { position: absolute; left: var(--cds-pad-sm); top: var(--cds-pad-sm); box-shadow: var(--cds-shadow-popover); }
 .oea-panel-close { margin-left: auto; }
 .oea-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm) var(--cds-gap-md); align-items: center; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
@@ -334,9 +336,10 @@ path.dist.dim { opacity: .35; }
         <div class="oea-mapbox" id="mapbox">
           <svg class="oea-map" id="mapsvg" role="img" aria-label="Map of Oregon districts" preserveAspectRatio="xMidYMid meet"></svg>
           <div class="oea-zoom">
-            <button type="button" class="oea-btn" id="zin" aria-label="Zoom in">+</button>
-            <button type="button" class="oea-btn" id="zout" aria-label="Zoom out">−</button>
+            <button type="button" class="oea-btn" id="zin" aria-label="Zoom in" title="Zoom in">+</button>
+            <button type="button" class="oea-btn" id="zout" aria-label="Zoom out" title="Zoom out">−</button>
           </div>
+          <p class="oea-zoomhint" id="zoomhint" hidden>Some labels are hidden at this size. Zoom in with <b>+</b> (or pinch) to see them all.</p>
           <button type="button" class="oea-btn oea-mapclose" id="mapclose" hidden>✕ Close <span id="mapclose-name"></span></button>
           <div class="oea-tip" id="tip" hidden></div>
         </div>
@@ -392,6 +395,11 @@ path.dist.dim { opacity: .35; }
           </div>
           <div class="oea-mapbox" id="night-mapbox">
             <svg class="oea-map" id="night-svg" role="img" aria-label="Map of results by district" preserveAspectRatio="xMidYMid meet"></svg>
+            <div class="oea-zoom">
+              <button type="button" class="oea-btn" id="nzin" aria-label="Zoom in" title="Zoom in">+</button>
+              <button type="button" class="oea-btn" id="nzout" aria-label="Zoom out" title="Zoom out">−</button>
+            </div>
+            <p class="oea-zoomhint" id="nzoomhint" hidden>Some labels are hidden at this size. Zoom in with <b>+</b> (or pinch) to see them all.</p>
             <div class="oea-tip" id="night-tip" hidden></div>
           </div>
           <div class="oea-controls">

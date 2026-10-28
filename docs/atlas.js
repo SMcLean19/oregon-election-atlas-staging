@@ -83,90 +83,114 @@ const proj = (lon, lat) => [(lon - LON0) * KX * SC, (LAT1 - lat) * SC];
 const GEO = {};
 const pArea = d3.polygonArea || ((p) => p.reduce((s, [x, y], i) => { const [x2, y2] = p[(i + 1) % p.length]; return s + (x * y2 - x2 * y) / 2; }, 0));
 const pCent = d3.polygonCentroid || ((p) => [d3.mean(p, (q) => q[0]), d3.mean(p, (q) => q[1])]);
-// Label placement: the spot where the label's box fits best (not the centroid, which can sit near an edge or outside a
-// curved district), plus the largest font that keeps the label inside its shape there.
-const CH_W = 0.68, CAP_H = 0.8;  // average glyph width and cap height, in ems
-function labelSpot(ring, text) {
-  const n = ring.length;
-  const rays = ([px, py]) => {  // clearance left/right and up/down from p to the shape's edge
+// Label placement. Every visible label is the same size (13 map units at the full-state view, scaling with zoom).
+// A label sits at its shape's center when it fits there; otherwise it may shift a short way to where it fits; if it
+// still doesn't fit at this zoom it is hidden until the user zooms in (then the center has room).
+const CAP_H = 0.8;
+let _cv = null;
+function emWidth(t) {  // label width per unit of font size, measured in the page's font (estimate outside a browser)
+  try {
+    if (!_cv) _cv = document.createElement('canvas').getContext('2d');
+    const fam = getComputedStyle(document.querySelector('.oea') || document.body).getPropertyValue('--font-anthropic-sans').trim() || getComputedStyle(document.body).fontFamily;
+    _cv.font = `100px ${fam}`;
+    return _cv.measureText(String(t)).width / 100 * 1.06;
+  } catch (e) { return String(t).length * 0.62; }
+}
+function labelSpot(rings, text) {
+  const ring = rings[0], W = emWidth(text);
+  const segs = [];  // every edge, holes included
+  for (const r of rings) for (let i = 0; i < r.length; i++) segs.push([r[i], r[(i + 1) % r.length]]);
+  const contains = (p) => d3.polygonContains(ring, p) && !rings.slice(1).some((h) => d3.polygonContains(h, p));
+  const rays = ([px, py]) => {  // distance from p to the shape's edge going left, right, up and down
     let l = Infinity, r = Infinity, u = Infinity, dn = Infinity;
-    for (let i = 0; i < n; i++) {
-      const [ax, ay] = ring[i], [bx, by] = ring[(i + 1) % n];
+    for (const [[ax, ay], [bx, by]] of segs) {
       if ((ay > py) !== (by > py)) { const x = ax + (py - ay) * (bx - ax) / (by - ay); if (x < px) l = Math.min(l, px - x); else r = Math.min(r, x - px); }
       if ((ax > px) !== (bx > px)) { const y = ay + (px - ax) * (by - ay) / (bx - ax); if (y < py) u = Math.min(u, py - y); else dn = Math.min(dn, y - py); }
     }
     return [Math.min(l, r), Math.min(u, dn)];
   };
-  const len = String(text).length || 1;
-  // font size f fits when half its width fits sideways and half its height fits up/down; check the box's corner rays too
+  // largest font whose label box, centered on p, stays inside the shape
   const fit = (p) => {
-    if (!d3.polygonContains(ring, p)) return 0;
+    if (!contains(p)) return 0;
     const [hx, hy] = rays(p);
-    let f = Math.min(hx * 2 * 0.9 / (len * CH_W), hy * 2 * 0.85 / CAP_H);
-    for (const dy of [-0.4, 0.4]) {  // the label's top and bottom edges must also clear the shape
-      const q = [p[0], p[1] + dy * CAP_H * f];
-      if (!d3.polygonContains(ring, q)) { f *= 0.6; continue; }
-      f = Math.min(f, rays(q)[0] * 2 * 0.9 / (len * CH_W));
-    }
-    for (let t = 0; t < 5 && f > 0; t++) {  // corners of the label box must be inside too
-      const w = len * CH_W * f / 2, h = CAP_H * f * 0.45;
-      if ([[-w, -h], [w, -h], [-w, h], [w, h]].every(([dx, dy]) => d3.polygonContains(ring, [p[0] + dx, p[1] + dy]))) return f;
-      f *= 0.85;
+    let f = Math.min(hx * 2 * 0.95 / W, hy * 2 * 0.9 / CAP_H);
+    for (let t = 0; t < 8 && f > 0.5; t++) {
+      const w = W * f / 2, h = CAP_H * f / 2;
+      const pts = [[-w, -h], [w, -h], [-w, h], [w, h], [-w, 0], [w, 0], [0, -h], [0, h]].map(([dx, dy]) => [p[0] + dx, p[1] + dy]);
+      if (pts.every(contains) && rays([p[0], p[1] - h])[0] * 2 >= W * f * 0.95 && rays([p[0], p[1] + h])[0] * 2 >= W * f * 0.95) return f;
+      f *= 0.9;
     }
     return 0;
   };
-  const cen = pCent(ring);
-  let x0 = d3.min(ring, (p) => p[0]), x1 = d3.max(ring, (p) => p[0]), y0 = d3.min(ring, (p) => p[1]), y1 = d3.max(ring, (p) => p[1]);
-  const diag = Math.hypot(x1 - x0, y1 - y0);
-  let best = cen, bf = fit(cen), bs = bf;
-  for (let pass = 0; pass < 3; pass++) {
-    const g = pass ? 8 : 16, sx = (x1 - x0) / g, sy = (y1 - y0) / g;
-    for (let i = 0; i <= g; i++) for (let j = 0; j <= g; j++) {
-      const p = [x0 + i * sx, y0 + j * sy], f = fit(p);
-      const s = f * (1 - 0.35 * Math.hypot(p[0] - cen[0], p[1] - cen[1]) / diag);  // prefer spots near the middle
-      if (s > bs) { bs = s; bf = f; best = p; }
-    }
-    [x0, x1, y0, y1] = [best[0] - sx, best[0] + sx, best[1] - sy, best[1] + sy];
+  const cen = pCent(ring), fc = fit(cen), T = 13;
+  if (fc >= T) return { cen, fc, m: cen, fm: fc };
+  const x0 = d3.min(ring, (p) => p[0]), x1 = d3.max(ring, (p) => p[0]), y0 = d3.min(ring, (p) => p[1]), y1 = d3.max(ring, (p) => p[1]);
+  const inside = contains(cen);
+  // a short shift only (8% of the shape's size) when the center is inside; curved shapes whose center is outside
+  // (e.g. SD 1, HD 27) take the nearest spot with room
+  const maxMove = inside ? 0.08 * Math.hypot(x1 - x0, y1 - y0) : Infinity;
+  const g = 40, cands = [];
+  for (let i = 0; i <= g; i++) for (let j = 0; j <= g; j++) {
+    const p = [x0 + (x1 - x0) * i / g, y0 + (y1 - y0) * j / g], dist = Math.hypot(p[0] - cen[0], p[1] - cen[1]);
+    if (dist > maxMove) continue;
+    const f = fit(p);
+    if (f > 0) cands.push({ p, f, dist });
   }
-  return { c: best, fmax: bf };
+  if (!cands.length) return { cen, fc, m: cen, fm: fc };
+  const need = Math.min(T, d3.max(cands, (c) => c.f) * 0.9);
+  const pick = cands.filter((c) => c.f >= need).sort((a, b) => a.dist - b.dist)[0];
+  return inside ? { cen, fc, m: pick.p, fm: pick.f } : { cen: pick.p, fc: pick.f, m: pick.p, fm: pick.f };
 }
-// font size (in map units, before zoom) for a label at zoom k: 13px when it fits, smaller when the shape is tight, 0 = hide
-function labelFont(d, k) {
-  const f = Math.min(13 / k, d.fmax || 0);
-  return f * k >= 10 ? f : 0;
+// where and how big a label is at zoom k: [x, y, font] or null when it must wait for more zoom
+const LABEL_PX = 9.2;  // on-screen label size, the same on a phone and a desktop
+function labelPos(d, k, upx) {
+  const need = LABEL_PX * upx / k;
+  if (d.fc >= need) return [d.cen[0], d.cen[1], need];
+  if (d.fm >= need) return [d.m[0], d.m[1], need];
+  return null;
 }
-// set size and visibility for a label layer; a label that would overlap a bigger one is hidden until you zoom in
+// place every label for zoom k; a label that would touch a bigger shape's label is hidden until you zoom in
 function fitLabels(sel, k) {
+  const svgEl = sel.node() && sel.node().ownerSVGElement;
+  const upx = VW / ((svgEl && svgEl.clientWidth) || 715);  // map units per screen pixel at zoom 1
   const boxes = [];
-  const items = sel.nodes().map((n) => ({ n, d: n.__data__, f: labelFont(n.__data__, k) })).sort((a, b) => b.f - a.f);
+  let hidden = 0;
+  const items = sel.nodes().map((n) => ({ n, d: n.__data__, pos: labelPos(n.__data__, k, upx) }))
+    .sort((a, b) => (b.d.area || 0) - (a.d.area || 0));
   for (const it of items) {
-    let { f } = it;
-    if (f) {
-      const w = String(it.n.textContent).length * CH_W * f / 2 + f * 0.15, h = CAP_H * f / 2 + f * 0.15, [x, y] = it.d.c;
-      if (boxes.some((b) => Math.abs(b[0] - x) < b[2] + w && Math.abs(b[1] - y) < b[3] + h)) f = 0;
+    let { pos } = it;
+    if (pos) {
+      const [x, y, f] = pos, w = emWidth(it.n.textContent) * f / 2 + f * 0.2, h = CAP_H * f / 2 + f * 0.2;
+      if (boxes.some((b) => Math.abs(b[0] - x) < b[2] + w && Math.abs(b[1] - y) < b[3] + h)) pos = null;
       else boxes.push([x, y, w, h]);
     }
-    d3.select(it.n).attr('font-size', f || 13 / k).style('stroke-width', (f || 13 / k) * 3 / 13).attr('display', f ? null : 'none');
+    if (!pos) hidden++;
+    const f = pos ? pos[2] : LABEL_PX * upx / k;
+    d3.select(it.n).attr('x', pos ? pos[0] : it.d.cen[0]).attr('y', pos ? pos[1] : it.d.cen[1])
+      .attr('font-size', f).style('stroke-width', f * 3 / 13).attr('display', pos ? null : 'none');
   }
+  return hidden;
 }
 function shape(row) {
   const key = `${row.chamber}-${row.district}`;
   if (GEO[key]) return GEO[key];
   const g = typeof row.geometry === 'string' ? JSON.parse(row.geometry) : row.geometry;
-  let d = '', best = null, bestA = -1, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  let d = '', best = null, bestRings = null, bestA = -1, x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const poly of g.coordinates) {
+    const prj = poly.map((ring) => ring.map(([lo, la]) => proj(lo, la)));
     poly.forEach((ring, i) => {
-      const pts = ring.map(([lo, la]) => proj(lo, la));
+      const pts = prj[i];
       d += 'M' + pts.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L') + 'Z';
       for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
       if (i === 0) {
         const a = Math.abs(pArea(pts));
-        if (a > bestA) { bestA = a; best = pts; }
+        if (a > bestA) { bestA = a; best = pts; bestRings = prj; }
       }
     });
   }
-  const { c, fmax } = labelSpot(best, row.chamber === 'county' ? row.district : row.district);
-  return (GEO[key] = { key, d, c, fmax, area: bestA, box: [[x0, y0], [x1, y1]] });
+  const c = pCent(best);
+  const L = labelSpot(bestRings, String(row.district));
+  return (GEO[key] = { key, d, c, ...L, area: bestA, box: [[x0, y0], [x1, y1]] });
 }
 
 // ---------- map ----------
@@ -203,7 +227,9 @@ $('#zin')?.addEventListener('click', () => svg.transition().duration(250).call(z
 $('#zout')?.addEventListener('click', () => svg.transition().duration(250).call(zoom.scaleBy, 1 / 1.6));
 
 function sizeLabels() {
-  fitLabels(gLabels.selectAll('text'), K);
+  const hidden = fitLabels(gLabels.selectAll('text'), K);
+  const hint = $('#zoomhint');
+  if (hint) hint.hidden = !hidden;
 }
 
 const tip = $('#tip');
@@ -1134,4 +1160,4 @@ dash.onData(drawAll);
 const named = location.hash.slice(1).replace(/^go-/, '') || (window.OEA_PUBLIC ? 'night' : '');
 if (['map', 'night', 'top', 'races', 'registration', 'money', 'methods'].includes(named)) showTab(named);
 
-window.OEA = { labelFont, fitLabels, moneyLine, moneyBlock, money$, CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };
+window.OEA = { fitLabels, moneyLine, moneyBlock, money$, CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };
