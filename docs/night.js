@@ -35,8 +35,7 @@ document.querySelectorAll('[data-nzoom]').forEach((b) => b.addEventListener('cli
   nZoomBox([O.proj(a, b2), O.proj(c, d)], b.dataset.nzoom === 'state' ? 1 : 0.9);
 }));
 function sizeNLabels() {
-  ngLabels.selectAll('text').attr('font-size', 13 / NK).style('stroke-width', 3 / NK)
-    .attr('display', (d) => (Math.sqrt(d.area) * NK > (N.chamber === 'county' ? 46 : 26) ? null : 'none'));
+  O.fitLabels(ngLabels.selectAll('text'), NK);
 }
 const ntip = O.$('#night-tip');
 

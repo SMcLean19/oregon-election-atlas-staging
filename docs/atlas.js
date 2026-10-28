@@ -83,27 +83,71 @@ const proj = (lon, lat) => [(lon - LON0) * KX * SC, (LAT1 - lat) * SC];
 const GEO = {};
 const pArea = d3.polygonArea || ((p) => p.reduce((s, [x, y], i) => { const [x2, y2] = p[(i + 1) % p.length]; return s + (x * y2 - x2 * y) / 2; }, 0));
 const pCent = d3.polygonCentroid || ((p) => [d3.mean(p, (q) => q[0]), d3.mean(p, (q) => q[1])]);
-// the point inside a polygon farthest from its edges (grid search, refined twice)
-function innerPoint(ring) {
-  const segDist = ([px, py], [ax, ay], [bx, by]) => {
-    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
-    const t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
-    return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+// Label placement: the spot where the label's box fits best (not the centroid, which can sit near an edge or outside a
+// curved district), plus the largest font that keeps the label inside its shape there.
+const CH_W = 0.68, CAP_H = 0.8;  // average glyph width and cap height, in ems
+function labelSpot(ring, text) {
+  const n = ring.length;
+  const rays = ([px, py]) => {  // clearance left/right and up/down from p to the shape's edge
+    let l = Infinity, r = Infinity, u = Infinity, dn = Infinity;
+    for (let i = 0; i < n; i++) {
+      const [ax, ay] = ring[i], [bx, by] = ring[(i + 1) % n];
+      if ((ay > py) !== (by > py)) { const x = ax + (py - ay) * (bx - ax) / (by - ay); if (x < px) l = Math.min(l, px - x); else r = Math.min(r, x - px); }
+      if ((ax > px) !== (bx > px)) { const y = ay + (px - ax) * (by - ay) / (bx - ax); if (y < py) u = Math.min(u, py - y); else dn = Math.min(dn, y - py); }
+    }
+    return [Math.min(l, r), Math.min(u, dn)];
   };
-  const edge = (p) => { let m = Infinity; for (let i = 0; i < ring.length; i++) m = Math.min(m, segDist(p, ring[i], ring[(i + 1) % ring.length])); return m; };
-  let [x0, y0, x1, y1] = [d3.min(ring, (p) => p[0]), d3.min(ring, (p) => p[1]), d3.max(ring, (p) => p[0]), d3.max(ring, (p) => p[1])];
-  let best = ring[0], bd = -1;
+  const len = String(text).length || 1;
+  // font size f fits when half its width fits sideways and half its height fits up/down; check the box's corner rays too
+  const fit = (p) => {
+    if (!d3.polygonContains(ring, p)) return 0;
+    const [hx, hy] = rays(p);
+    let f = Math.min(hx * 2 * 0.9 / (len * CH_W), hy * 2 * 0.85 / CAP_H);
+    for (const dy of [-0.4, 0.4]) {  // the label's top and bottom edges must also clear the shape
+      const q = [p[0], p[1] + dy * CAP_H * f];
+      if (!d3.polygonContains(ring, q)) { f *= 0.6; continue; }
+      f = Math.min(f, rays(q)[0] * 2 * 0.9 / (len * CH_W));
+    }
+    for (let t = 0; t < 5 && f > 0; t++) {  // corners of the label box must be inside too
+      const w = len * CH_W * f / 2, h = CAP_H * f * 0.45;
+      if ([[-w, -h], [w, -h], [-w, h], [w, h]].every(([dx, dy]) => d3.polygonContains(ring, [p[0] + dx, p[1] + dy]))) return f;
+      f *= 0.85;
+    }
+    return 0;
+  };
+  const cen = pCent(ring);
+  let x0 = d3.min(ring, (p) => p[0]), x1 = d3.max(ring, (p) => p[0]), y0 = d3.min(ring, (p) => p[1]), y1 = d3.max(ring, (p) => p[1]);
+  const diag = Math.hypot(x1 - x0, y1 - y0);
+  let best = cen, bf = fit(cen), bs = bf;
   for (let pass = 0; pass < 3; pass++) {
-    const n = 24, sx = (x1 - x0) / n, sy = (y1 - y0) / n;
-    for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
-      const p = [x0 + i * sx, y0 + j * sy];
-      if (!d3.polygonContains(ring, p)) continue;
-      const dd = edge(p);
-      if (dd > bd) { bd = dd; best = p; }
+    const g = pass ? 8 : 16, sx = (x1 - x0) / g, sy = (y1 - y0) / g;
+    for (let i = 0; i <= g; i++) for (let j = 0; j <= g; j++) {
+      const p = [x0 + i * sx, y0 + j * sy], f = fit(p);
+      const s = f * (1 - 0.35 * Math.hypot(p[0] - cen[0], p[1] - cen[1]) / diag);  // prefer spots near the middle
+      if (s > bs) { bs = s; bf = f; best = p; }
     }
     [x0, x1, y0, y1] = [best[0] - sx, best[0] + sx, best[1] - sy, best[1] + sy];
   }
-  return best;
+  return { c: best, fmax: bf };
+}
+// font size (in map units, before zoom) for a label at zoom k: 13px when it fits, smaller when the shape is tight, 0 = hide
+function labelFont(d, k) {
+  const f = Math.min(13 / k, d.fmax || 0);
+  return f * k >= 10 ? f : 0;
+}
+// set size and visibility for a label layer; a label that would overlap a bigger one is hidden until you zoom in
+function fitLabels(sel, k) {
+  const boxes = [];
+  const items = sel.nodes().map((n) => ({ n, d: n.__data__, f: labelFont(n.__data__, k) })).sort((a, b) => b.f - a.f);
+  for (const it of items) {
+    let { f } = it;
+    if (f) {
+      const w = String(it.n.textContent).length * CH_W * f / 2 + f * 0.15, h = CAP_H * f / 2 + f * 0.15, [x, y] = it.d.c;
+      if (boxes.some((b) => Math.abs(b[0] - x) < b[2] + w && Math.abs(b[1] - y) < b[3] + h)) f = 0;
+      else boxes.push([x, y, w, h]);
+    }
+    d3.select(it.n).attr('font-size', f || 13 / k).style('stroke-width', (f || 13 / k) * 3 / 13).attr('display', f ? null : 'none');
+  }
 }
 function shape(row) {
   const key = `${row.chamber}-${row.district}`;
@@ -121,9 +165,8 @@ function shape(row) {
       }
     });
   }
-  let c = pCent(best);
-  if (!d3.polygonContains(best, c)) c = innerPoint(best);  // curved districts (e.g. SD 1, HD 27): keep the label inside
-  return (GEO[key] = { key, d, c, area: bestA, box: [[x0, y0], [x1, y1]] });
+  const { c, fmax } = labelSpot(best, row.chamber === 'county' ? row.district : row.district);
+  return (GEO[key] = { key, d, c, fmax, area: bestA, box: [[x0, y0], [x1, y1]] });
 }
 
 // ---------- map ----------
@@ -160,10 +203,7 @@ $('#zin')?.addEventListener('click', () => svg.transition().duration(250).call(z
 $('#zout')?.addEventListener('click', () => svg.transition().duration(250).call(zoom.scaleBy, 1 / 1.6));
 
 function sizeLabels() {
-  gLabels.selectAll('text')
-    .attr('font-size', (d) => 13 / K)
-    .style('stroke-width', 3 / K)
-    .attr('display', (d) => (Math.sqrt(d.area) * K > (S.chamber === 'county' ? 46 : 26) ? null : 'none'));
+  fitLabels(gLabels.selectAll('text'), K);
 }
 
 const tip = $('#tip');
@@ -1094,4 +1134,4 @@ dash.onData(drawAll);
 const named = location.hash.slice(1).replace(/^go-/, '') || (window.OEA_PUBLIC ? 'night' : '');
 if (['map', 'night', 'top', 'races', 'registration', 'money', 'methods'].includes(named)) showTab(named);
 
-window.OEA = { moneyLine, moneyBlock, money$, CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };
+window.OEA = { labelFont, fitLabels, moneyLine, moneyBlock, money$, CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };
