@@ -83,6 +83,28 @@ const proj = (lon, lat) => [(lon - LON0) * KX * SC, (LAT1 - lat) * SC];
 const GEO = {};
 const pArea = d3.polygonArea || ((p) => p.reduce((s, [x, y], i) => { const [x2, y2] = p[(i + 1) % p.length]; return s + (x * y2 - x2 * y) / 2; }, 0));
 const pCent = d3.polygonCentroid || ((p) => [d3.mean(p, (q) => q[0]), d3.mean(p, (q) => q[1])]);
+// the point inside a polygon farthest from its edges (grid search, refined twice)
+function innerPoint(ring) {
+  const segDist = ([px, py], [ax, ay], [bx, by]) => {
+    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    const t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
+    return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+  };
+  const edge = (p) => { let m = Infinity; for (let i = 0; i < ring.length; i++) m = Math.min(m, segDist(p, ring[i], ring[(i + 1) % ring.length])); return m; };
+  let [x0, y0, x1, y1] = [d3.min(ring, (p) => p[0]), d3.min(ring, (p) => p[1]), d3.max(ring, (p) => p[0]), d3.max(ring, (p) => p[1])];
+  let best = ring[0], bd = -1;
+  for (let pass = 0; pass < 3; pass++) {
+    const n = 24, sx = (x1 - x0) / n, sy = (y1 - y0) / n;
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+      const p = [x0 + i * sx, y0 + j * sy];
+      if (!d3.polygonContains(ring, p)) continue;
+      const dd = edge(p);
+      if (dd > bd) { bd = dd; best = p; }
+    }
+    [x0, x1, y0, y1] = [best[0] - sx, best[0] + sx, best[1] - sy, best[1] + sy];
+  }
+  return best;
+}
 function shape(row) {
   const key = `${row.chamber}-${row.district}`;
   if (GEO[key]) return GEO[key];
@@ -99,7 +121,8 @@ function shape(row) {
       }
     });
   }
-  const c = pCent(best);
+  let c = pCent(best);
+  if (!d3.polygonContains(best, c)) c = innerPoint(best);  // curved districts (e.g. SD 1, HD 27): keep the label inside
   return (GEO[key] = { key, d, c, area: bestA, box: [[x0, y0], [x1, y1]] });
 }
 
