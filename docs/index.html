@@ -105,6 +105,20 @@ a:focus-visible, button:focus-visible { outline: 2px solid #2f69c0; outline-offs
 .oea-map text { fill: var(--color-fg); paint-order: stroke; stroke: var(--color-panel); stroke-width: 3px; font-family: var(--font-anthropic-sans); pointer-events: none; font-variant-numeric: tabular-nums; }
 .oea-zoom { position: absolute; right: var(--cds-pad-sm); top: var(--cds-pad-sm); display: grid; gap: var(--cds-gap-xs); }
 .oea-zoom .oea-btn { width: 2rem; padding: var(--cds-pad-xs) 0; text-align: center; }
+.oea-map .oea-cty path { stroke: var(--color-fg); stroke-width: 1px; stroke-opacity: .7; cursor: pointer; }
+.oea-map .oea-cty path:hover { stroke-width: 2px; stroke-opacity: 1; }
+.oea-map.ctyon g.dlabels { display: none; }
+.oea-cty-panel { display: grid; gap: var(--cds-gap-sm); border-top: 1px solid var(--color-border-line); padding-top: var(--cds-pad-md); }
+.oea-cty-panel .mh { display: flex; justify-content: space-between; align-items: center; gap: var(--cds-gap-sm); flex-wrap: wrap; }
+.oea-ctylist details { border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); }
+.oea-ctylist details + details { margin-top: var(--cds-gap-xs); }
+.oea-ctylist summary { display: flex; justify-content: space-between; gap: var(--cds-gap-sm); cursor: pointer; font-size: var(--cds-font-size-caption); }
+.oea-ctylist summary .nm { font-weight: 600; color: var(--color-fg); }
+.oea-ctylist details[open] summary { margin-bottom: var(--cds-gap-xs); }
+.oea-ctytable { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.oea-ctytable td { padding: 2px 0; }
+.oea-ctytable td.n { text-align: right; padding-left: var(--cds-gap-sm); }
+.oea-ctytable tr.tot td { border-top: 1px solid var(--color-border-line); color: var(--color-fg-muted); }
 .oea-zoomhint { margin: var(--cds-gap-xs) 0 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
 .oea-zoomhint b { color: var(--color-fg); }
 .oea-mapclose { position: absolute; left: var(--cds-pad-sm); top: var(--cds-pad-sm); box-shadow: var(--cds-shadow-popover); }

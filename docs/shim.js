@@ -3,7 +3,7 @@
 // and polls for new election-night results every 60 seconds.
 (function () {
   window.OEA_PUBLIC = true;
-  const FILES = ['geo', 'registration', 'races', 'statewide', 'officeholders', 'nominees_2026', 'ballot_2026', 'finance',
+  const FILES = ['geo', 'registration', 'races', 'statewide', 'officeholders', 'nominees_2026', 'ballot_2026', 'finance', 'cd_counties',
     'live_races', 'live_results', 'live_feed', 'live_status', 'live_counties'];
   const LIVE = ['live_races', 'live_results', 'live_feed', 'live_status', 'live_counties'];
   const store = {}, failed = new Set(), calcs = [], cbs = [];

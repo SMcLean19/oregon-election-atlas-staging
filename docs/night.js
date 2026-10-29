@@ -11,13 +11,18 @@ const isUp = () => !document.getElementById('night').hidden;
 // ---------- map ----------
 const nsvg = d3.select('#night-svg').attr('viewBox', `0 0 ${O.VW} ${O.VH}`);
 const ng = nsvg.append('g');
-const ngShapes = ng.append('g'), ngHover = ng.append('g').attr('class', 'oea-hover'), ngLabels = ng.append('g');
+const ngShapes = ng.append('g'), ngCty = ng.append('g').attr('class', 'oea-cty'), ngHover = ng.append('g').attr('class', 'oea-hover'), ngLabels = ng.append('g').attr('class', 'dlabels');
 // hover outline on its own layer, so it is the same width on every shape
 const nHoverOn = (d) => ngHover.selectAll('path').data([d]).join('path').attr('d', (x) => x).attr('vector-effect', 'non-scaling-stroke');
 const nHoverOff = () => ngHover.selectAll('path').remove();
 // click empty map space, or the highlighted district again, to go back to the statewide race
-const nDeselect = () => { if (N.sel && !N.sel.endsWith('-OR')) selectRace(`${N.race}-OR`); };
-nsvg.on('click.desel', (ev) => { if (!ev.target.closest('path.dist')) nDeselect(); });
+const nDeselect = () => {
+  if (!N.sel || N.sel.endsWith('-OR')) return;
+  const zoomed = N.sel.startsWith('congress-');
+  selectRace(`${N.race}-OR`);
+  if (zoomed) { const [[a, b], [c, d]] = O.PRESET.state; nZoomBox([O.proj(a, b), O.proj(c, d)], 1); }
+};
+nsvg.on('click.desel', (ev) => { if (!ev.target.closest('path.dist, .oea-cty path')) nDeselect(); });
 let NK = 1;
 const nzoom = d3.zoom().clickDistance(8).scaleExtent([1, 60]).translateExtent([[-50, -50], [O.VW + 50, O.VH + 50]])
   .filter((e) => (e.type === 'wheel' ? e.ctrlKey || e.metaKey : !e.button))
@@ -36,6 +41,7 @@ document.querySelectorAll('[data-nzoom]').forEach((b) => b.addEventListener('cli
   nZoomBox([O.proj(a, b2), O.proj(c, d)], b.dataset.nzoom === 'state' ? 1 : 0.9);
 }));
 function sizeNLabels() {
+  O.fitLabels(ngCty.selectAll('text'), NK);
   const hidden = O.fitLabels(ngLabels.selectAll('text'), NK);
   const hint = O.$('#nzoomhint');
   if (hint) hint.hidden = !hidden;
@@ -77,13 +83,56 @@ function drawNightMap() {
     .on('mouseenter', (ev, d) => nHoverOn(d.d))
     .on('mousemove', (ev, d) => nightTip(ev, d))
     .on('mouseleave', () => { ntip.hidden = true; nHoverOff(); })
-    .on('click', (ev, d) => { if (d.key === N.sel) nDeselect(); else if (d.race) selectRace(d.key); else if (N.chamber === 'county') selectRace(`${N.race}-OR`); })
+    .on('click', (ev, d) => { if (d.key === N.sel) nDeselect(); else if (d.race) selectRace(d.key, d.key.startsWith('congress-')); else if (N.chamber === 'county') selectRace(`${N.race}-OR`); })
     .on('keydown', (ev, d) => { if ((ev.key === 'Enter' || ev.key === ' ') && d.race) { ev.preventDefault(); selectRace(d.key); } });
   ngShapes.selectAll('path.sel').raise();
+  drawNightCty();
   ngLabels.selectAll('text').data(feats, (d) => d.key).join('text')
     .attr('x', (d) => d.c[0]).attr('y', (d) => d.c[1]).attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
     .text((d) => d.district);
   sizeNLabels();
+}
+
+// congressional race open: its counties appear inside the district, shaded by who leads there
+function liveCounties(dist) {
+  const live = new Map((O.rows('live_counties') || []).filter((c) => c.race === `congress-${dist}`).map((c) => [c.county, c]));
+  return O.cdCountyList(dist).map((c) => {
+    const l = live.get(c.county);
+    return { ...c, total: l ? l.votes : 0, cands: l && l.cands ? l.cands : [] };
+  });
+}
+function drawNightCty() {
+  const on = N.chamber === 'congress' && N.sel && N.sel.startsWith('congress-');
+  nsvg.classed('ctyon', !!on);
+  ngShapes.selectAll('path').classed('dim', (d) => !!on && d.key !== N.sel);
+  if (!on) { ngCty.selectAll('*').remove(); return; }
+  const dist = N.sel.split('-')[1];
+  const list = liveCounties(dist), by = new Map(list.map((c) => [c.county, c]));
+  O.countyOverlay(nsvg, ngCty, N.sel, list, {
+    fill: (county) => {
+      const c = by.get(county);
+      if (!c || !c.total || c.cands.length < 1) return null;
+      const s = [...c.cands].sort((x, y) => y.votes - x.votes);
+      const m = s.length > 1 ? (s[0].votes - s[1].votes) / c.total * 100 : 100;
+      const col = s[0].party === 'D' ? O.CD() : s[0].party === 'R' ? O.CR() : O.CT();
+      return d3.interpolateRgb(O.neutral(), col)(0.25 + 0.75 * Math.min(1, m / 30));
+    },
+    tip: (ev, county) => {
+      const c = by.get(county), box = O.$('#night-mapbox').getBoundingClientRect();
+      ntip.replaceChildren(nel('div', 't', `${county} County${c && c.part ? ' (part)' : ''}`));
+      if (!c || !c.total) ntip.append(nel('div', 'muted', 'No results from this county yet'));
+      else [...c.cands].sort((x, y) => y.votes - x.votes).slice(0, 3)
+        .forEach((x) => ntip.append(nel('div', O.pcls(x.party), `${x.name}: ${O.fmt(x.votes)} (${(x.votes / c.total * 100).toFixed(1)}%)`)));
+      ntip.hidden = false;
+      let x = ev.clientX - box.left + 14, y = ev.clientY - box.top + 14;
+      if (x + ntip.offsetWidth > box.width) x = Math.max(0, ev.clientX - box.left - ntip.offsetWidth - 14);
+      if (y + ntip.offsetHeight > box.height) y = Math.max(0, ev.clientY - box.top - ntip.offsetHeight - 14);
+      ntip.style.left = x + 'px'; ntip.style.top = y + 'px';
+    },
+    untip: () => { ntip.hidden = true; },
+    click: (county) => { N.ctyOpen = county; drawNightDetail(); const d = document.querySelector('#night-detail details[open]'); if (d) d.scrollIntoView({ block: 'nearest' }); },
+  });
+  O.fitLabels(ngCty.selectAll('text'), NK);
 }
 
 function nightTip(ev, d) {
@@ -274,6 +323,7 @@ function drawNightTop() {
 
 // ---------- race detail ----------
 function selectRace(id, zoom) {
+  if (id !== N.sel) N.ctyOpen = null;
   N.sel = id;
   let full = false;
   if (id === 'governor-OR' || id === 'ussenate-OR') {
@@ -292,6 +342,7 @@ function selectRace(id, zoom) {
     // update only what the selection touches, so nothing above the click changes height
     ngShapes.selectAll('path').classed('sel', (d) => d.key === id);
     ngShapes.selectAll('path.sel').raise();
+    drawNightCty();
     document.querySelectorAll('#night-top .oea-ncard, #night-seatbox .oea-ncard').forEach((c) => c.classList.toggle('on', c.dataset.race === id));
     drawNightDetail();
   }
@@ -337,6 +388,14 @@ function drawNightDetail() {
   kv('Why it was called', 'call_reason', r.call_reason);
   kv('Called at', 'called_at', r.called_at ? (r.call_reason === 'Unopposed' ? 'Poll close' : `${tfmt(r.called_at)}, ${tdate(r.called_at)}`) : '');
   P.append(dl);
+  if (r.chamber === 'congress' && N.chamber === 'congress' && N.sel === r.race_id) {
+    const box = nel('section', 'oea-cty-panel');
+    box.append(nel('p', 'oea-sub', 'Results by county'));
+    const list = liveCounties(r.district).sort((x, y) => y.total - x.total || x.county.localeCompare(y.county));
+    box.append(O.countyDetails(list, { open: N.ctyOpen, empty: 'No results yet' }));
+    box.append(nel('p', 'oea-note', 'From the Secretary of State’s county results for this race. Split counties show only their votes in this district. Click a county on the map or here to open it.'));
+    P.append(box);
+  }
   const sum = (O.rows('district_summary') || []).find((x) => x.key === r.race_id);
   if (O.moneyBlock) {
     const reg = sum ? sum.registered : (O.rows('state_registration') || [])[0]?.total;

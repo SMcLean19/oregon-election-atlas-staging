@@ -189,7 +189,7 @@ function shape(row) {
   }
   const c = pCent(best);
   const L = labelSpot(bestRings, String(row.district));
-  return (GEO[key] = { key, d, c, ...L, area: bestA, box: [[x0, y0], [x1, y1]] });
+  return (GEO[key] = { key, d, c, ...L, rings: bestRings, area: bestA, box: [[x0, y0], [x1, y1]] });
 }
 
 // ---------- map ----------
@@ -197,8 +197,9 @@ const svg = d3.select('#mapsvg').attr('viewBox', `0 0 ${VW} ${VH}`);
 const gRoot = svg.append('g');
 const gShapes = gRoot.append('g');
 const gPrec = gRoot.append('g').attr('class', 'oea-prec');
+const gCty = gRoot.append('g').attr('class', 'oea-cty');
 const gHover = gRoot.append('g').attr('class', 'oea-hover');
-const gLabels = gRoot.append('g');
+const gLabels = gRoot.append('g').attr('class', 'dlabels');
 let K = 1;
 const zoom = d3.zoom()
   .clickDistance(8) // a click with a little hand movement is still a click, not a drag
@@ -226,6 +227,7 @@ $('#zin')?.addEventListener('click', () => svg.transition().duration(250).call(z
 $('#zout')?.addEventListener('click', () => svg.transition().duration(250).call(zoom.scaleBy, 1 / 1.6));
 
 function sizeLabels() {
+  fitLabels(gCty.selectAll('text'), K);
   const hidden = fitLabels(gLabels.selectAll('text'), K);
   const hint = $('#zoomhint');
   if (hint) hint.hidden = !hidden;
@@ -257,7 +259,7 @@ function showTip(ev, o) {
 function hoverOn(d) { gHover.selectAll('path').data([d]).join('path').attr('d', (x) => x).attr('vector-effect', 'non-scaling-stroke'); }
 function hoverOff() { gHover.selectAll('path').remove(); }
 // click empty map space (or the selected shape again, or press Escape) to close the selection
-svg.on('click.desel', (ev) => { if (!ev.target.closest('path.dist, .oea-prec path')) deselect(); });
+svg.on('click.desel', (ev) => { if (!ev.target.closest('path.dist, .oea-prec path, .oea-cty path')) deselect(); });
 svg.on('keydown.desel', (ev) => { if (ev.key === 'Escape') deselect(); });
 function drawMap() {
   hoverOff();
@@ -291,9 +293,123 @@ function drawMap() {
     .attr('x', (d) => d.c[0]).attr('y', (d) => d.c[1])
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
     .text((d) => (S.chamber === 'county' ? d.o.district : d.o.district));
-  sizeLabels();
   drawPrecincts();
+  drawCdOverlay();
+  sizeLabels();
   drawLegend();
+}
+
+// ---------- counties inside a congressional district ----------
+// cd_counties: U.S. House results by county for each district (2022, 2024); the latest year gives the county list
+function cdCountyRows(d, year) { return (rows('cd_counties') || []).filter((r) => r.district === String(d) && (year == null || r.year === year)); }
+function cdLatestYear() { return d3.max(rows('cd_counties') || [], (r) => r.year); }
+function cdCountyList(d) { return cdCountyRows(d, cdLatestYear()).map((r) => ({ county: r.county, part: r.part })); }
+// county lines (optionally shaded) drawn inside one district and clipped to it, with county names where they fit
+function countyOverlay(svgSel, g, distKey, counties, opts = {}) {
+  g.selectAll('*').remove();
+  const dg = (rows('geo') || []).find((r) => `${r.chamber}-${r.district}` === distKey);
+  if (!dg || !counties.length) return;
+  const D = shape(dg), id = `clip-${svgSel.attr('id')}`;
+  let defs = svgSel.select('defs');
+  if (defs.empty()) defs = svgSel.insert('defs', ':first-child');
+  defs.selectAll(`clipPath#${id}`).data([0]).join('clipPath').attr('id', id)
+    .selectAll('path').data([D]).join('path').attr('d', (x) => x.d).attr('clip-rule', 'evenodd');
+  const names = new Set(counties.map((c) => c.county));
+  const feats = (rows('geo') || []).filter((r) => r.chamber === 'county' && names.has(String(r.district)))
+    .map((r) => ({ ...shape(r), county: String(r.district) }));
+  g.append('g').attr('clip-path', `url(#${id})`).selectAll('path').data(feats).join('path')
+    .attr('d', (x) => x.d).attr('fill', (x) => (opts.fill && opts.fill(x.county)) || 'transparent')
+    .attr('fill-rule', 'evenodd').attr('vector-effect', 'non-scaling-stroke')
+    .on('mousemove', (ev, x) => opts.tip && opts.tip(ev, x.county))
+    .on('mouseleave', () => opts.untip && opts.untip())
+    .on('click', (ev, x) => opts.click && opts.click(x.county));
+  const inD = (p) => d3.polygonContains(D.rings[0], p) && !D.rings.slice(1).some((h) => d3.polygonContains(h, p));
+  // a split county is labeled only when its label spot lands inside this district
+  g.append('g').selectAll('text').data(feats.filter((x) => inD(x.cen))).join('text')
+    .attr('text-anchor', 'middle').attr('dominant-baseline', 'central').text((x) => x.county);
+}
+// one expandable row per county, like the Secretary of State's county drop-downs
+function countyDetails(list, opts = {}) {
+  const wrap = el('div', 'oea-ctylist');
+  for (const c of list) {
+    const det = el('details');
+    if (opts.open === c.county) det.open = true;
+    const sm = el('summary');
+    sm.append(el('span', 'nm', c.county + (c.part ? ' (part)' : '')));
+    const cands = (c.cands || []).filter((x) => x.votes > 0).sort((x, y) => y.votes - x.votes);
+    if (!c.total || !cands.length) sm.append(el('span', 'muted', opts.empty || 'No votes'));
+    else {
+      const m = cands.length > 1 ? (cands[0].votes - cands[1].votes) / c.total * 100 : 100;
+      sm.append(el('span', pcls(cands[0].party), `${cands[0].name.split(' ').slice(-1)[0]} +${m.toFixed(1)}`));
+    }
+    det.append(sm);
+    if (c.total && cands.length) {
+      const t = el('table', 'oea-ctytable');
+      const tb = el('tbody');
+      for (const x of cands) {
+        const tr = el('tr');
+        tr.append(el('td', pcls(x.party), `${x.name} (${x.party})`), el('td', 'n', fmt(x.votes)), el('td', 'n', `${(x.votes / c.total * 100).toFixed(1)}%`));
+        tb.append(tr);
+      }
+      const tr = el('tr', 'tot'); tr.append(el('td', '', 'Total'), el('td', 'n', fmt(c.total)), el('td', 'n', '')); tb.append(tr);
+      t.append(tb); det.append(t);
+    }
+    if (c.part) det.append(el('p', 'oea-note', `${c.county} County is split between congressional districts; these are its votes in this district only.`));
+    wrap.append(det);
+  }
+  return wrap;
+}
+// explorer: county lines inside the open congressional district
+function drawCdOverlay() {
+  const on = S.chamber === 'congress' && S.sel && S.sel.startsWith('congress-');
+  svg.classed('ctyon', !!on);
+  if (!on) { gCty.selectAll('*').remove(); return; }
+  gShapes.selectAll('path.dist').classed('dim', (d) => d.key !== S.sel);
+  const dist = S.sel.split('-')[1];
+  const yr = S.cdYear || cdLatestYear();
+  const byC = new Map(cdCountyRows(dist, yr).map((r) => [r.county, r]));
+  countyOverlay(svg, gCty, S.sel, cdCountyList(dist), {
+    tip: (ev, county) => {
+      const r = byC.get(county), box = $('#mapbox').getBoundingClientRect();
+      tip.replaceChildren(el('div', 't', `${county} County${r && r.part ? ' (part)' : ''}`));
+      if (r && r.total) {
+        const cs = [...r.cands].sort((x, y) => y.votes - x.votes);
+        tip.append(el('div', 'muted', `${yr} U.S. House`));
+        cs.filter((x) => x.votes).slice(0, 3).forEach((x) => tip.append(el('div', pcls(x.party), `${x.name}: ${(x.votes / r.total * 100).toFixed(1)}%`)));
+      }
+      tip.hidden = false;
+      let x = ev.clientX - box.left + 14, y = ev.clientY - box.top + 14;
+      if (x + tip.offsetWidth > box.width) x = Math.max(0, ev.clientX - box.left - tip.offsetWidth - 14);
+      if (y + tip.offsetHeight > box.height) y = Math.max(0, ev.clientY - box.top - tip.offsetHeight - 14);
+      tip.style.left = x + 'px'; tip.style.top = y + 'px';
+    },
+    untip: () => { tip.hidden = true; },
+    click: (county) => { S.cdOpen = county; drawPanel(); const d = document.querySelector('.oea-cty-panel details[open]'); if (d) d.scrollIntoView({ block: 'nearest' }); },
+  });
+  fitLabels(gCty.selectAll('text'), K);
+}
+function cdCountyBlock(dist) {
+  const all = cdCountyRows(dist);
+  if (!all.length) return null;
+  const years = [...new Set(all.map((r) => r.year))].sort((x, y) => y - x);
+  const yr = years.includes(S.cdYear) ? S.cdYear : years[0];
+  const box = el('section', 'oea-cty-panel');
+  const h = el('div', 'mh');
+  h.append(el('p', 'oea-sub', `U.S. House results by county, ${yr}`));
+  const seg = el('div', 'oea-seg');
+  for (const y of years) {
+    const b = el('button', '', String(y)); b.type = 'button'; b.setAttribute('aria-pressed', y === yr ? 'true' : 'false');
+    b.addEventListener('click', () => { S.cdYear = y; drawCdOverlay(); drawPanel(); });
+    seg.append(b);
+  }
+  h.append(seg);
+  box.append(h);
+  const list = cdCountyRows(dist, yr).sort((x, y) => y.total - x.total);
+  box.append(countyDetails(list, { open: S.cdOpen }));
+  const note = list.find((r) => r.note);
+  if (note) box.append(el('p', 'oea-note', note.note));
+  box.append(el('p', 'oea-note', 'Click a county on the map or in the list for its result. Source: county precinct returns (OpenElections), grouped by county.'));
+  return box;
 }
 
 // ---------- precincts (inside a selected county; test: Marion) ----------
@@ -418,22 +534,25 @@ function drawLegend() {
 
 // ---------- district file ----------
 function select(key, opts = {}) {
-  if (key !== S.sel) S.prec = null;
+  if (key !== S.sel) { S.prec = null; S.cdOpen = null; }
   S.sel = key;
   gShapes.selectAll('path.dist').classed('sel', (d) => d.key === key);
   gShapes.selectAll('path.sel').raise();
   drawPrecincts();
+  drawCdOverlay();
   drawPanel();
   const hasPrec = !!selCounty();  // counties zoom in; their precincts draw as soon as the precinct file has loaded
-  if ((opts.zoom || hasPrec) && GEO[key]) { zoomBox(GEO[key].box, hasPrec ? 0.8 : 0.6); S.autoZoom = true; }
+  const isCd = key.startsWith('congress-');  // congressional districts zoom in to show their counties
+  if ((opts.zoom || hasPrec || isCd) && GEO[key]) { zoomBox(GEO[key].box, hasPrec ? 0.8 : isCd ? 0.85 : 0.6); S.autoZoom = true; }
   if (opts.scroll) $('#panel').scrollIntoView({ block: 'nearest' });
 }
 
 function deselect() {
   if (!S.sel) return;
-  S.sel = null; S.prec = null; tip.hidden = true;
+  S.sel = null; S.prec = null; S.cdOpen = null; tip.hidden = true;
   gShapes.selectAll('path.dist').classed('sel', false);
   drawPrecincts();
+  drawCdOverlay();
   drawPanel();
   if (S.autoZoom) { S.autoZoom = false; const [[a, b], [c, d]] = PRESET.state; zoomBox([proj(a, b), proj(c, d)], 1); }
 }
@@ -709,6 +828,7 @@ function drawPanel() {
   regBlock(o, reg);
   P.append(reg);
   if (o.chamber !== 'county') P.append(resultsTable(o.chamber, o.district));
+  if (o.chamber === 'congress') { const cb = cdCountyBlock(o.district); if (cb) P.append(cb); }
   P.append(statewideTable(o.chamber, o.district));
   if (o.chamber === 'county') { const pb = precinctBlock(o.district); if (pb) P.append(pb); }
 }
@@ -1160,4 +1280,4 @@ dash.onData(drawAll);
 const named = location.hash.slice(1).replace(/^go-/, '') || (window.OEA_PUBLIC ? 'night' : '');
 if (['map', 'night', 'top', 'races', 'registration', 'money', 'methods'].includes(named)) showTab(named);
 
-window.OEA = { drawHeader: () => drawHeader(), fitLabels, moneyLine, moneyBlock, money$, CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };
+window.OEA = { countyOverlay, countyDetails, cdCountyList, cdCountyRows, drawHeader: () => drawHeader(), fitLabels, moneyLine, moneyBlock, money$, CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };
