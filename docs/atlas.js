@@ -95,11 +95,15 @@ function emWidth(t) {  // label width per unit of font size, measured in the pag
     return _cv.measureText(String(t)).width / 100 * 1.06;
   } catch (e) { return String(t).length * 0.62; }
 }
-function labelSpot(rings, text) {
-  const ring = rings[0], W = emWidth(text);
-  const segs = [];  // every edge, holes included
-  for (const r of rings) for (let i = 0; i < r.length; i++) segs.push([r[i], r[(i + 1) % r.length]]);
-  const contains = (p) => d3.polygonContains(ring, p) && !rings.slice(1).some((h) => d3.polygonContains(h, p));
+// clip (optional): the rings of a second shape; the label then goes in the part of this shape inside it
+// (a county's piece of a congressional district)
+function labelSpot(rings, text, clip = null) {
+  // county pieces get a little extra room on each side, since their edges are often jagged coastline or notches
+  const ring = rings[0], W = emWidth(text) + (clip ? 0.3 : 0);
+  const segs = [];  // every edge, holes included (and the clip shape's edges, which bound the piece too)
+  for (const r of clip ? [...rings, ...clip] : rings) for (let i = 0; i < r.length; i++) segs.push([r[i], r[(i + 1) % r.length]]);
+  const inRings = (rs, p) => d3.polygonContains(rs[0], p) && !rs.slice(1).some((h) => d3.polygonContains(h, p));
+  const contains = (p) => inRings(rings, p) && (!clip || inRings(clip, p));
   const rays = ([px, py]) => {  // distance from p to the shape's edge going left, right, up and down
     let l = Infinity, r = Infinity, u = Infinity, dn = Infinity;
     for (const [[ax, ay], [bx, by]] of segs) {
@@ -121,13 +125,40 @@ function labelSpot(rings, text) {
     }
     return 0;
   };
-  const cen = pCent(ring), fc = fit(cen), T = 13;
-  if (fc >= T) return { cen, fc, m: cen, fm: fc };
-  const x0 = d3.min(ring, (p) => p[0]), x1 = d3.max(ring, (p) => p[0]), y0 = d3.min(ring, (p) => p[1]), y1 = d3.max(ring, (p) => p[1]);
+  let x0 = d3.min(ring, (p) => p[0]), x1 = d3.max(ring, (p) => p[0]), y0 = d3.min(ring, (p) => p[1]), y1 = d3.max(ring, (p) => p[1]);
+  let cen = pCent(ring), area = null;
+  if (clip) {  // the piece: its center is the average of a fine grid of points inside both shapes
+    x0 = Math.max(x0, d3.min(clip[0], (p) => p[0])); x1 = Math.min(x1, d3.max(clip[0], (p) => p[0]));
+    y0 = Math.max(y0, d3.min(clip[0], (p) => p[1])); y1 = Math.min(y1, d3.max(clip[0], (p) => p[1]));
+    const pts = [], n = 50;
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+      const p = [x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * j / n];
+      if (contains(p)) pts.push(p);
+    }
+    if (!pts.length) return { cen, fc: 0, m: cen, fm: 0, area: 0 };
+    cen = [d3.mean(pts, (p) => p[0]), d3.mean(pts, (p) => p[1])];
+    area = pts.length / ((n + 1) * (n + 1)) * (x1 - x0) * (y1 - y0);
+    x0 = d3.min(pts, (p) => p[0]); x1 = d3.max(pts, (p) => p[0]); y0 = d3.min(pts, (p) => p[1]); y1 = d3.max(pts, (p) => p[1]);
+  }
+  const fc = fit(cen), T = 13;
+  if (clip && fc < 1.4 * T) {
+    // a county piece that is cramped at its center: move a short way to where the name has more room (notches, coastline)
+    const reach = 0.15 * Math.hypot(x1 - x0, y1 - y0), g = 24;
+    let best = { p: cen, f: fc, s: Math.min(fc, 1.6 * T) };
+    for (let i = 0; i <= g; i++) for (let j = 0; j <= g; j++) {
+      const p = [cen[0] - reach + 2 * reach * i / g, cen[1] - reach + 2 * reach * j / g];
+      const dist = Math.hypot(p[0] - cen[0], p[1] - cen[1]);
+      if (dist > reach) continue;
+      const f = fit(p), s = Math.min(f, 1.6 * T) * (1 - 0.5 * dist / reach);
+      if (s > best.s) best = { p, f, s };
+    }
+    return { cen: best.p, fc: best.f, m: best.p, fm: best.f, area };
+  }
+  if (fc >= T) return { cen, fc, m: cen, fm: fc, area };
   const inside = contains(cen);
-  // a short shift only (8% of the shape's size) when the center is inside; curved shapes whose center is outside
-  // (e.g. SD 1, HD 27) take the nearest spot with room
-  const maxMove = inside ? 0.08 * Math.hypot(x1 - x0, y1 - y0) : Infinity;
+  // a short shift only (8% of the shape's size, 15% for a county piece) when the center is inside; curved shapes whose
+  // center is outside (e.g. SD 1, HD 27) take the nearest spot with room
+  const maxMove = inside ? (clip ? 0.15 : 0.08) * Math.hypot(x1 - x0, y1 - y0) : Infinity;
   const g = 40, cands = [];
   for (let i = 0; i <= g; i++) for (let j = 0; j <= g; j++) {
     const p = [x0 + (x1 - x0) * i / g, y0 + (y1 - y0) * j / g], dist = Math.hypot(p[0] - cen[0], p[1] - cen[1]);
@@ -135,10 +166,10 @@ function labelSpot(rings, text) {
     const f = fit(p);
     if (f > 0) cands.push({ p, f, dist });
   }
-  if (!cands.length) return { cen, fc, m: cen, fm: fc };
+  if (!cands.length) return { cen, fc, m: cen, fm: fc, area };
   const need = Math.min(T, d3.max(cands, (c) => c.f) * 0.9);
   const pick = cands.filter((c) => c.f >= need).sort((a, b) => a.dist - b.dist)[0];
-  return inside ? { cen, fc, m: pick.p, fm: pick.f } : { cen: pick.p, fc: pick.f, m: pick.p, fm: pick.f };
+  return inside ? { cen, fc, m: pick.p, fm: pick.f, area } : { cen: pick.p, fc: pick.f, m: pick.p, fm: pick.f, area };
 }
 // where and how big a label is at zoom k: [x, y, font] or null when it must wait for more zoom
 const LABEL_PX = 9.2;  // on-screen label size, the same on a phone and a desktop
@@ -305,6 +336,7 @@ function cdCountyRows(d, year) { return (rows('cd_counties') || []).filter((r) =
 function cdLatestYear() { return d3.max(rows('cd_counties') || [], (r) => r.year); }
 function cdCountyList(d) { return cdCountyRows(d, cdLatestYear()).map((r) => ({ county: r.county, part: r.part })); }
 // county lines (optionally shaded) drawn inside one district and clipped to it, with county names where they fit
+const PIECE = {};
 function countyOverlay(svgSel, g, distKey, counties, opts = {}) {
   g.selectAll('*').remove();
   const dg = (rows('geo') || []).find((r) => `${r.chamber}-${r.district}` === distKey);
@@ -323,9 +355,13 @@ function countyOverlay(svgSel, g, distKey, counties, opts = {}) {
     .on('mousemove', (ev, x) => opts.tip && opts.tip(ev, x.county))
     .on('mouseleave', () => opts.untip && opts.untip())
     .on('click', (ev, x) => opts.click && opts.click(x.county));
-  const inD = (p) => d3.polygonContains(D.rings[0], p) && !D.rings.slice(1).some((h) => d3.polygonContains(h, p));
-  // a split county is labeled only when its label spot lands inside this district
-  g.append('g').selectAll('text').data(feats.filter((x) => inD(x.cen))).join('text')
+  // each name goes at the center of the county's piece inside this district (cached per district and county)
+  const labs = feats.map((x) => {
+    const k = `${distKey}|${x.county}`;
+    if (!PIECE[k]) PIECE[k] = labelSpot(x.rings, x.county, D.rings);
+    return { ...PIECE[k], county: x.county };
+  }).filter((x) => x.area > 0);
+  g.append('g').selectAll('text').data(labs).join('text')
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'central').text((x) => x.county);
 }
 // one expandable row per county, like the Secretary of State's county drop-downs
