@@ -5,7 +5,6 @@ const RACE = { governor: 'Governor', ussenate: 'U.S. Senate' };
 const nel = O.el, nmark = O.mark;
 const tfmt = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' }) : '');
 const tdate = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Los_Angeles' }) : '');
-const PL = { D: 'Dem', R: 'Rep', L: 'Lib', PG: 'Green', IPO: 'Ind', WFP: 'WFP', PRO: 'Prog', NAV: 'Unaff.' };
 const pcolor = (p) => (p === 'D' ? O.CD() : p === 'R' ? O.CR() : 'var(--color-fg-muted)');
 const isUp = () => !document.getElementById('night').hidden;
 

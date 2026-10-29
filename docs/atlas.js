@@ -5,7 +5,6 @@ const CH = {
   congress: { label: 'Congress', short: 'CD', title: 'Congressional District', rep: 'Rep.' },
   county: { label: 'Statewide', short: '', title: 'County', rep: '' },
 };
-const THEN = '2022-09';
 // Oregon's five statewide executive offices (Oregon Blue Book; holders checked Oct 28, 2026)
 const STATE_EXEC = [
   { office: 'Governor', short: 'Governor',  holder: 'Tina Kotek', party: 'D', since: '2023', up2026: 'Yes' },
@@ -754,7 +753,6 @@ function drawDefaultPanel(P) {
 // ---------- races table ----------
 function sortRows(list) {
   const { key, dir } = S.sort;
-  const num = (v) => (v == null || v === '' ? null : Number(v));
   return [...list].sort((a, b) => {
     let va = a[key], vb = b[key];
     if (key === 'district') { va = isNaN(+a.district) ? a.district : +a.district; vb = isNaN(+b.district) ? b.district : +b.district; }
