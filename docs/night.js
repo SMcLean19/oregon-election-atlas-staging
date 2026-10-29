@@ -284,6 +284,7 @@ function selectRace(id, zoom) {
   if (zoom && ch !== N.chamber && ['house', 'senate', 'congress'].includes(ch)) {
     N.chamber = ch;
     full = true;
+    O.drawHeader();
     document.querySelectorAll('#night-seg button').forEach((x) => x.setAttribute('aria-pressed', x.dataset.ch === ch ? 'true' : 'false'));
   }
   if (full) drawNight();
@@ -476,11 +477,12 @@ O.$('#night-seg').addEventListener('click', (e) => {
   N.chamber = b.dataset.ch;
   document.querySelectorAll('#night-seg button').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
   drawNight();
+  O.drawHeader();
 });
 O.$('#night-race-seg').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-race]');
   if (!b) return;
   selectRace(`${b.dataset.race}-OR`);
 });
-window.OEANight = { draw: drawNight };
+window.OEANight = { draw: drawNight, chamber: () => N.chamber };
 dash.onData(drawNight);

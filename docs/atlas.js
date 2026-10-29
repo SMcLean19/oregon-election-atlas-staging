@@ -871,15 +871,17 @@ function drawHeader() {
   const p = $('#takeaway');
   const ov = rows('chamber_overview');
   p.replaceChildren();
-  if (S.chamber === 'county') {
+  // the line under the title follows whichever map is showing: Election Night's selector on that tab, the explorer's elsewhere
+  const ch = S.tab === 'night' && window.OEANight ? window.OEANight.chamber() : S.chamber;
+  if (ch === 'county') {
     const nD = STATE_EXEC.filter((o) => o.party === 'D').length;
     p.append('Statewide offices: Democrats hold ', el('b', '', String(nD)), ' of ', el('b', '', String(STATE_EXEC.length)),
       ' (Governor, Secretary of State, Attorney General, Treasurer and Labor Commissioner; the Labor Commissioner is formally nonpartisan). Only the Governor is on the November 3 ballot.');
     return;
   }
   if (!ov) { p.append(el('span', 'dash-skeleton', '—')); return; }
-  const r = ov.find((x) => x.chamber === S.chamber);
-  if (S.chamber === 'congress') {
+  const r = ov.find((x) => x.chamber === ch);
+  if (ch === 'congress') {
     const sen = (rows('officeholders') || []).filter((x) => x.chamber === 'ussenate');
     const sD = sen.filter((x) => x.party === 'D').length;
     const bb = (f, v) => mark(el('b', '', String(v)), 'chamber_overview', f, { chamber: 'congress' });
@@ -1158,4 +1160,4 @@ dash.onData(drawAll);
 const named = location.hash.slice(1).replace(/^go-/, '') || (window.OEA_PUBLIC ? 'night' : '');
 if (['map', 'night', 'top', 'races', 'registration', 'money', 'methods'].includes(named)) showTab(named);
 
-window.OEA = { fitLabels, moneyLine, moneyBlock, money$, CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };
+window.OEA = { drawHeader: () => drawHeader(), fitLabels, moneyLine, moneyBlock, money$, CH, $, el, mark, pcls, dname, dshort, rows, fmt, pct, shape, proj, VW, VH, PRESET, hemicycle, CD, CR, CT, neutral: () => NEUTRAL, readNeutral, showTab: (t) => showTab(t) };
